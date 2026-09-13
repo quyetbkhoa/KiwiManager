@@ -14,9 +14,9 @@
       "phone": {
         "packageName": "com.kiwi.manager",
         "assetPattern": "kiwimanager",
-        "versionName": "1.1.0",
-        "versionCode": 10100,
-        "downloadUrl": "https://github.com/quyetbkhoa/KiwiManager/releases/download/v1.1.0/KiwiManager-v1.1.0.apk",
+        "versionName": "1.2.0",
+        "versionCode": 10200,
+        "downloadUrl": "https://github.com/quyetbkhoa/KiwiManager/releases/download/v1.2.0/KiwiManager-v1.2.0.apk",
         "minSdk": 26
       }
     },
