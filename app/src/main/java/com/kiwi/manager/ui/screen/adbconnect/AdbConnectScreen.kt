@@ -14,8 +14,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +45,7 @@ import kotlinx.coroutines.launch
 fun AdbConnectScreen(
     viewModel: AdbConnectViewModel,
     onNavigateBack: () -> Unit,
+    onNavigateToWatchApps: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -112,6 +117,88 @@ fun AdbConnectScreen(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // Connected Watch Quick Navigation Banner
+                if (uiState.isConnected) {
+                    item {
+                        GlassBox(
+                            modifier = Modifier.fillMaxWidth(),
+                            backgroundColor = KiwiNeon.copy(alpha = 0.12f),
+                            borderBrush = Brush.horizontalGradient(listOf(KiwiNeon, Color(0xFF22C55E)))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(CircleShape)
+                                                .background(KiwiNeon.copy(alpha = 0.2f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Watch,
+                                                contentDescription = null,
+                                                tint = KiwiNeon,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(10.dp))
+
+                                        Column {
+                                            Text(
+                                                text = uiState.deviceInfo?.let { "${it.manufacturer} ${it.model}".trim() } ?: "Đồng Hồ Đã Kết Nối",
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Sẵn sàng quản lý ứng dụng Wear OS",
+                                                fontSize = 11.sp,
+                                                color = KiwiNeon
+                                            )
+                                        }
+                                    }
+
+                                    if (uiState.deviceInfo?.batteryLevel != null) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = if (uiState.deviceInfo?.isCharging == true) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
+                                                contentDescription = null,
+                                                tint = KiwiNeon,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "${uiState.deviceInfo?.batteryLevel}%",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = KiwiNeon
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                TactilePillButton(
+                                    text = "Mở Quản Lý App Đồng Hồ",
+                                    icon = Icons.Default.Watch,
+                                    onClick = { onNavigateToWatchApps?.invoke() },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Steps Guide Bento Card
                 item {
                     GlassBox(

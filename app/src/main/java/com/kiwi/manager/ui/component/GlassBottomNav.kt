@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,6 +36,7 @@ import com.kiwi.manager.ui.theme.KiwiNeon
 
 enum class NavTab(val title: String, val icon: ImageVector, val route: String) {
     HOME("Kho App", Icons.Default.GridView, "home"),
+    WATCH_APPS("App Watch", Icons.Default.Watch, "watch_apps"),
     ADB("Wireless ADB", Icons.Default.Cable, "adb_connect"),
     SETTINGS("Cài Đặt", Icons.Default.Settings, "settings")
 }
@@ -49,7 +51,7 @@ fun GlassBottomNav(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Box(

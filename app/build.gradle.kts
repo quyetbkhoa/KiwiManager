@@ -12,8 +12,8 @@ android {
         applicationId = "com.kiwi.manager"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10201
-        versionName = "1.2.1"
+        versionCode = 10300
+        versionName = "1.3.0"
         
         vectorDrawables {
             useSupportLibrary = true

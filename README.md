@@ -20,6 +20,7 @@
   - ☀️ **Light Theme:** Sáng thanh lịch với sắc xanh kiwi tươi mát.
   - 🌙 **Dark Theme:** Tối tiêu chuẩn dịu mắt.
   - 🖤 **Pure OLED Black:** Đen tuyệt đối (`#000000`), tiết kiệm pin tối đa cho màn hình AMOLED và đồng bộ phong cách với Wear OS.
+- **⌚ Quản lý ứng dụng trên đồng hồ (Watch App Manager):** Trực tiếp kiểm soát toàn bộ app trên smartwatch qua Wireless ADB: tắt app ngầm (`am force-stop`), mở app (`monkey launcher`), xóa dữ liệu (`pm clear`), gỡ cài đặt (`pm uninstall`), vô hiệu hóa/kích hoạt (`pm disable`/`enable`), phân loại ứng dụng Người dùng & Hệ thống, giám sát pin và ứng dụng đang chạy.
 - **⚡ Làm mới kho thủ công (Manual Refresh):** Nút cập nhật tức thì trên TopAppBar cùng hỗ trợ chế độ kép:
   - *Dynamic Mode:* Tự động quét và phân tích GitHub Releases mới nhất qua API.
   - *Static Mode:* Sử dụng `catalog.json` offline-first.
