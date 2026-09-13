@@ -1,5 +1,6 @@
 package com.kiwi.manager.data.repository
 
+import android.content.Context
 import com.kiwi.manager.data.local.DataStoreManager
 import com.kiwi.manager.data.local.PackageManagerWrapper
 import com.kiwi.manager.data.remote.CatalogService
@@ -16,6 +17,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class CatalogRepository(
+    private val context: Context,
     private val catalogService: CatalogService,
     private val gitHubApiService: GitHubApiService,
     private val dataStoreManager: DataStoreManager,
@@ -30,7 +32,11 @@ class CatalogRepository(
             
             val processedApps = manifest.apps.map { app ->
                 if (app.source == "github_releases") {
-                    resolveGitHubVersions(app)
+                    try {
+                        resolveGitHubVersions(app)
+                    } catch (_: Exception) {
+                        app
+                    }
                 } else {
                     app
                 }
@@ -42,12 +48,27 @@ class CatalogRepository(
             val displayInfos = processedApps.map { resolveAppDisplayInfo(it) }
             Result.success(displayInfos)
         } else {
-            Result.failure(result.exceptionOrNull() ?: Exception("Unknown error fetching catalog"))
+            // If remote fails, try using cached or fallback to bundled assets/catalog.json
+            val cached = getCachedApps()
+            if (cached.isNotEmpty()) {
+                Result.success(cached)
+            } else {
+                Result.failure(result.exceptionOrNull() ?: Exception("Unknown error fetching catalog"))
+            }
         }
     }
 
     suspend fun getCachedApps(): List<AppDisplayInfo> = withContext(Dispatchers.IO) {
-        val cachedJson = dataStoreManager.getCachedCatalog()
+        var cachedJson = dataStoreManager.getCachedCatalog()
+        if (cachedJson.isNullOrEmpty()) {
+            // Fallback to bundled assets/catalog.json
+            cachedJson = try {
+                context.assets.open("catalog.json").bufferedReader().use { it.readText() }
+            } catch (_: Exception) {
+                null
+            }
+        }
+
         if (cachedJson.isNullOrEmpty()) {
             emptyList()
         } else {
@@ -60,7 +81,12 @@ class CatalogRepository(
         }
     }
 
-    private suspend fun resolveAppDisplayInfo(app: AppInfo): AppDisplayInfo {
+    suspend fun getApp(appId: String): AppDisplayInfo? = withContext(Dispatchers.IO) {
+        val apps = getCachedApps()
+        apps.find { it.app.id == appId }
+    }
+
+    private fun resolveAppDisplayInfo(app: AppInfo): AppDisplayInfo {
         val phoneInstalled = app.phone?.let { packageManagerWrapper.getInstalledVersion(it.packageName) }
         val watchInstalled = null // Check over ADB is handled externally
 
@@ -84,7 +110,7 @@ class CatalogRepository(
         val computedCode = VersionComparator.computeVersionCode(cleanVersion)
 
         val updatedPhone = app.phone?.let { phoneInfo ->
-            val asset = release.assets.find { it.name.contains(phoneInfo.assetPattern) }
+            val asset = release.assets.find { matchesPattern(it.name, phoneInfo.assetPattern) }
             if (asset != null) {
                 phoneInfo.copy(
                     versionName = cleanVersion,
@@ -96,7 +122,7 @@ class CatalogRepository(
         }
 
         val updatedWatch = app.watch?.let { watchInfo ->
-            val asset = release.assets.find { it.name.contains(watchInfo.assetPattern) }
+            val asset = release.assets.find { matchesPattern(it.name, watchInfo.assetPattern) }
             if (asset != null) {
                 watchInfo.copy(
                     versionName = cleanVersion,
@@ -108,6 +134,19 @@ class CatalogRepository(
         }
 
         return app.copy(phone = updatedPhone, watch = updatedWatch)
+    }
+
+    private fun matchesPattern(assetName: String, pattern: String): Boolean {
+        if (pattern.isEmpty()) return true
+        val regex = pattern
+            .replace(".", "\\.")
+            .replace("*", ".*")
+            .replace("?", ".")
+        return try {
+            Regex(regex, RegexOption.IGNORE_CASE).matches(assetName)
+        } catch (_: Exception) {
+            assetName.contains(pattern.replace("*", ""), ignoreCase = true)
+        }
     }
 
     private fun checkPhoneStatus(app: AppInfo, installed: InstalledVersionInfo?): InstallStatus {

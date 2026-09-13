@@ -3,7 +3,11 @@ package com.kiwi.manager.ui.screen.home
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.delay
+import com.kiwi.manager.data.local.DataStoreManager
+import com.kiwi.manager.data.local.PackageManagerWrapper
+import com.kiwi.manager.data.remote.CatalogService
+import com.kiwi.manager.data.remote.GitHubApiService
+import com.kiwi.manager.data.repository.CatalogRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,39 +18,56 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    private val catalogService = CatalogService()
+    private val gitHubApiService = GitHubApiService()
+    private val dataStoreManager = DataStoreManager(application)
+    private val packageManagerWrapper = PackageManagerWrapper(application)
+    private val catalogRepository = CatalogRepository(
+        application,
+        catalogService,
+        gitHubApiService,
+        dataStoreManager,
+        packageManagerWrapper
+    )
+
     init {
-        // Construct dependencies here as requested (mocked for now since exact signatures aren't provided)
-        // val catalogService = CatalogService()
-        // val gitHubApiService = GitHubApiService()
-        // val dataStoreManager = DataStoreManager(application)
-        // val packageManagerWrapper = PackageManagerWrapper(application)
-        // val catalogRepository = CatalogRepository(...)
-        
-        refreshCatalog()
+        loadInitialApps()
+    }
+
+    private fun loadInitialApps() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val cached = catalogRepository.getCachedApps()
+            if (cached.isNotEmpty()) {
+                _uiState.update { it.copy(apps = cached, isLoading = false) }
+            }
+            refreshCatalog()
+        }
     }
 
     fun refreshCatalog() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isRefreshing = true, isLoading = it.apps.isEmpty(), error = null) }
-            
-            try {
-                // Simulate network request
-                delay(1500)
+            _uiState.update { it.copy(isRefreshing = true, error = null) }
+            val result = catalogRepository.refreshCatalog()
+            result.onSuccess { apps ->
                 _uiState.update { 
                     it.copy(
-                        isRefreshing = false,
+                        apps = apps, 
+                        isRefreshing = false, 
                         isLoading = false,
-                        // Here you would assign the actual apps from repository
-                        // apps = catalogRepository.getApps()
-                    )
+                        isOffline = false
+                    ) 
                 }
-            } catch (e: Exception) {
+            }.onFailure { err ->
+                val cached = catalogRepository.getCachedApps()
                 _uiState.update { 
                     it.copy(
-                        isRefreshing = false,
+                        apps = if (cached.isNotEmpty()) cached else it.apps,
+                        isRefreshing = false, 
                         isLoading = false,
-                        error = e.message ?: "Unknown error occurred"
-                    )
+                        isOffline = true,
+                        error = if (it.apps.isEmpty() && cached.isEmpty()) err.localizedMessage else null
+                    ) 
                 }
             }
         }

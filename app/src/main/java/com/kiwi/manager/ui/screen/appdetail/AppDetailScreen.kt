@@ -1,61 +1,101 @@
 package com.kiwi.manager.ui.screen.appdetail
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Cable
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kiwi.manager.domain.model.AppDisplayInfo
 import com.kiwi.manager.domain.model.DownloadProgress
 import com.kiwi.manager.domain.model.InstallStatus
+import com.kiwi.manager.ui.component.GlassBox
 import com.kiwi.manager.ui.component.StatusBadge
+import com.kiwi.manager.ui.component.TactilePillButton
+import com.kiwi.manager.ui.theme.GlassBorderGradient
+import com.kiwi.manager.ui.theme.KiwiGradient
+import com.kiwi.manager.ui.theme.KiwiNeon
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppDetailScreen(
     viewModel: AppDetailViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateToAdbConnect: () -> Unit
+    onNavigateToAdbConnect: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(uiState.app?.app?.name ?: "App Detail") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Box(
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(horizontal = 20.dp)
+                .padding(top = 16.dp, bottom = 24.dp)
         ) {
-            if (uiState.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (uiState.error != null) {
+            // Header Bar
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .clickable { onNavigateBack() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Quay lại",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
                 Text(
-                    text = uiState.error ?: "Error loading app",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.align(Alignment.Center)
+                    text = uiState.app?.app?.name ?: "Chi tiết ứng dụng",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+            }
+
+            if (uiState.isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = KiwiNeon, modifier = Modifier.size(36.dp))
+                }
+            } else if (uiState.error != null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = uiState.error ?: "", color = Color(0xFFFF5252))
+                }
             } else if (uiState.app != null) {
                 AppDetailContent(
                     appDisplayInfo = uiState.app!!,
@@ -77,112 +117,158 @@ fun AppDetailContent(
     onInstallWatch: () -> Unit,
     onNavigateToAdbConnect: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        // Header
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = appDisplayInfo.app.name.firstOrNull()?.toString() ?: "?",
-                    style = MaterialTheme.typography.displayMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(text = appDisplayInfo.app.name, style = MaterialTheme.typography.headlineMedium)
-                Text(text = appDisplayInfo.app.description, style = MaterialTheme.typography.bodyLarge)
-            }
-        }
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
 
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Phone Section
-        if (appDisplayInfo.app.phone != null) {
-            PlatformCard(
-                title = "📱 Phone",
-                installedVersion = appDisplayInfo.phoneInstalled?.versionName ?: "Not installed",
-                latestVersion = appDisplayInfo.app.phone.versionName,
-                status = appDisplayInfo.phoneStatus,
-                isInstalling = uiState.phoneInstalling,
-                downloadProgress = uiState.phoneDownloadProgress,
-                onInstallClick = onInstallPhone
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Watch Section
-        if (appDisplayInfo.app.watch != null) {
-            PlatformCard(
-                title = "⌚ Watch",
-                installedVersion = appDisplayInfo.watchInstalled?.versionName ?: "Not installed",
-                latestVersion = appDisplayInfo.app.watch.versionName,
-                status = appDisplayInfo.watchStatus,
-                isInstalling = uiState.watchInstalling,
-                downloadProgress = uiState.watchDownloadProgress,
-                onInstallClick = onInstallWatch
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Requires ADB connection",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                TextButton(onClick = onNavigateToAdbConnect) {
-                    Text("Connect")
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Install Log
+    LaunchedEffect(uiState.installLog.size) {
         if (uiState.installLog.isNotEmpty()) {
-            Text("Install Log", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            val listState = rememberLazyListState()
-            val coroutineScope = rememberCoroutineScope()
-            
-            LaunchedEffect(uiState.installLog.size) {
-                if (uiState.installLog.isNotEmpty()) {
-                    coroutineScope.launch {
-                        listState.animateScrollToItem(uiState.installLog.size - 1)
+            coroutineScope.launch {
+                listState.animateScrollToItem(uiState.installLog.size - 1)
+            }
+        }
+    }
+
+    val (appEmoji, iconGradient) = when (appDisplayInfo.app.id) {
+        "kiwi_manager" -> "🥝" to Brush.linearGradient(listOf(Color(0xFF76FF03), Color(0xFF388E3C)))
+        "gemini_wear" -> "🤖" to Brush.linearGradient(listOf(Color(0xFF42A5F5), Color(0xFF7E57C2)))
+        "open_navigation" -> "🗺️" to Brush.linearGradient(listOf(Color(0xFFFFB74D), Color(0xFFF4511E)))
+        "custom_vibration" -> "📳" to Brush.linearGradient(listOf(Color(0xFFEC407A), Color(0xFFAB47BC)))
+        else -> "📦" to Brush.linearGradient(listOf(Color(0xFF78909C), Color(0xFF37474F)))
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // App Hero Banner Card
+        item {
+            GlassBox(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(iconGradient)
+                            .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(22.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = appEmoji, fontSize = 34.sp)
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column {
+                        Text(
+                            text = appDisplayInfo.app.name,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = appDisplayInfo.app.description,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            lineHeight = 18.sp
+                        )
                     }
                 }
             }
+        }
 
-            ElevatedCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(8.dp)
-                ) {
-                    items(uiState.installLog) { logLine ->
-                        Text(
-                            text = logLine,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+        // Phone Action Widget
+        if (appDisplayInfo.app.phone != null) {
+            item {
+                BentoPlatformActionWidget(
+                    title = "📱 Phiên Bản Mobile Companion",
+                    packageName = appDisplayInfo.app.phone.packageName,
+                    installedVersion = appDisplayInfo.phoneInstalled?.versionName,
+                    latestVersion = appDisplayInfo.app.phone.versionName,
+                    status = appDisplayInfo.phoneStatus,
+                    isInstalling = uiState.phoneInstalling,
+                    downloadProgress = uiState.phoneDownloadProgress,
+                    onActionClick = onInstallPhone
+                )
+            }
+        }
+
+        // Watch Action Widget
+        if (appDisplayInfo.app.watch != null) {
+            item {
+                BentoPlatformActionWidget(
+                    title = "⌚ Phiên Bản Wear OS Watch",
+                    packageName = appDisplayInfo.app.watch.packageName,
+                    installedVersion = appDisplayInfo.watchInstalled?.versionName,
+                    latestVersion = appDisplayInfo.app.watch.versionName,
+                    status = appDisplayInfo.watchStatus,
+                    isInstalling = uiState.watchInstalling,
+                    downloadProgress = uiState.watchDownloadProgress,
+                    onActionClick = onInstallWatch,
+                    extraFooter = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            Text(
+                                text = "Yêu cầu kết nối Wireless ADB",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Mở cài đặt ADB →",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = KiwiNeon,
+                                modifier = Modifier.clickable { onNavigateToAdbConnect() }
+                            )
+                        }
+                    }
+                )
+            }
+        }
+
+        // Install Log Console
+        if (uiState.installLog.isNotEmpty()) {
+            item {
+                Column {
+                    Text(
+                        text = "NHẬT KÝ TIẾN TRÌNH",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF090D09))
+                            .border(1.dp, Color(0x3076FF03), RoundedCornerShape(20.dp))
+                            .padding(12.dp)
+                    ) {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(uiState.installLog) { line ->
+                                Text(
+                                    text = line,
+                                    color = KiwiNeon,
+                                    fontSize = 12.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -191,62 +277,127 @@ fun AppDetailContent(
 }
 
 @Composable
-fun PlatformCard(
+fun BentoPlatformActionWidget(
     title: String,
-    installedVersion: String,
+    packageName: String,
+    installedVersion: String?,
     latestVersion: String,
     status: InstallStatus,
     isInstalling: Boolean,
     downloadProgress: DownloadProgress?,
-    onInstallClick: () -> Unit
+    onActionClick: () -> Unit,
+    extraFooter: @Composable (() -> Unit)? = null
 ) {
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    GlassBox(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 StatusBadge(status = status, latestVersion = latestVersion)
             }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "Installed: $installedVersion", style = MaterialTheme.typography.bodyMedium)
-            Text(text = "Latest: $latestVersion", style = MaterialTheme.typography.bodyMedium)
-            
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = packageName,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Version specs row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Đang cài: ${installedVersion ?: "Chưa cài đặt"}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Bản phát hành: v$latestVersion",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = KiwiNeon
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
+            // Action or Progress
             if (isInstalling) {
                 if (downloadProgress != null) {
                     LinearProgressIndicator(
                         progress = { downloadProgress.percent / 100f },
-                        modifier = Modifier.fillMaxWidth()
+                        color = KiwiNeon,
+                        trackColor = Color.White.copy(alpha = 0.1f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${downloadProgress.percent}% · ${downloadProgress.downloadedMb} / ${downloadProgress.totalMb}",
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Đang tải: ${downloadProgress.percent}%",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = KiwiNeon
+                        )
+                        Text(
+                            text = "${downloadProgress.downloadedMb} / ${downloadProgress.totalMb} MB",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "Installing...", style = MaterialTheme.typography.labelSmall)
+                    LinearProgressIndicator(
+                        color = KiwiNeon,
+                        trackColor = Color.White.copy(alpha = 0.1f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Đang chuẩn bị gói cài đặt...",
+                        fontSize = 11.sp,
+                        color = KiwiNeon
+                    )
                 }
             } else {
                 val buttonText = when (status) {
-                    InstallStatus.NOT_INSTALLED -> "Install"
-                    InstallStatus.UPDATE_AVAILABLE -> "Update"
-                    InstallStatus.UP_TO_DATE -> "Reinstall"
-                    InstallStatus.UNKNOWN -> "Install"
+                    InstallStatus.NOT_INSTALLED -> "Tải & Cài Đặt Ngay"
+                    InstallStatus.UPDATE_AVAILABLE -> "Nâng Cấp Lên v$latestVersion"
+                    InstallStatus.UP_TO_DATE -> "Cài Đè Lại Bản Này"
+                    InstallStatus.UNKNOWN -> "Cài Đặt"
                 }
-                FilledTonalButton(
-                    onClick = onInstallClick,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(buttonText)
-                }
+
+                TactilePillButton(
+                    text = buttonText,
+                    onClick = onActionClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    isPrimary = true
+                )
             }
+
+            extraFooter?.invoke()
         }
     }
 }

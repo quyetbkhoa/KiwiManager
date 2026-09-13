@@ -1,16 +1,27 @@
 package com.kiwi.manager.ui.screen.appdetail
 
 import android.app.Application
+import android.content.Intent
+import android.net.Uri
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.kiwi.manager.data.local.DataStoreManager
+import com.kiwi.manager.data.local.PackageManagerWrapper
+import com.kiwi.manager.data.remote.CatalogService
+import com.kiwi.manager.data.remote.GitHubApiService
+import com.kiwi.manager.data.repository.AdbRepository
+import com.kiwi.manager.data.repository.CatalogRepository
+import com.kiwi.manager.data.repository.DownloadRepository
 import com.kiwi.manager.domain.model.DownloadProgress
-import kotlinx.coroutines.delay
+import com.kiwi.manager.domain.model.InstallResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
 class AppDetailViewModel(
     application: Application,
@@ -22,95 +33,147 @@ class AppDetailViewModel(
     private val _uiState = MutableStateFlow(AppDetailUiState())
     val uiState: StateFlow<AppDetailUiState> = _uiState.asStateFlow()
 
+    private val catalogService = CatalogService()
+    private val gitHubApiService = GitHubApiService()
+    private val dataStoreManager = DataStoreManager(application)
+    private val packageManagerWrapper = PackageManagerWrapper(application)
+    private val catalogRepository = CatalogRepository(
+        application,
+        catalogService,
+        gitHubApiService,
+        dataStoreManager,
+        packageManagerWrapper
+    )
+    private val downloadRepository = DownloadRepository(application)
+    private val adbRepository = AdbRepository(dataStoreManager)
+
     init {
-        // Construct dependencies here (mocked for now)
         loadAppDetail()
     }
 
     private fun loadAppDetail() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            try {
-                // Simulate loading from CatalogRepository
-                delay(1000)
+            val appDisplay = catalogRepository.getApp(appId)
+            if (appDisplay != null) {
+                _uiState.update { it.copy(app = appDisplay, isLoading = false) }
+            } else {
                 _uiState.update { 
-                    it.copy(
-                        isLoading = false,
-                        // app = catalogRepository.getApp(appId)
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update { 
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "Failed to load app details"
-                    )
+                    it.copy(isLoading = false, error = "Không tìm thấy thông tin ứng dụng!") 
                 }
             }
         }
     }
 
     fun installPhone() {
+        val app = _uiState.value.app?.app ?: return
+        val downloadUrl = app.phone?.downloadUrl
+        if (downloadUrl.isNullOrEmpty()) {
+            addLog("Không tìm thấy link tải APK cho Mobile!")
+            return
+        }
+
         viewModelScope.launch {
-            _uiState.update { it.copy(phoneInstalling = true) }
-            addLog("Starting phone download...")
+            _uiState.update { it.copy(phoneInstalling = true, phoneDownloadProgress = null) }
+            addLog("Bắt đầu tải file APK Mobile từ: $downloadUrl")
             
-            // Simulate download progress
-            for (i in 1..100 step 10) {
-                delay(200)
-                val totalBytes = 10L * 1024 * 1024 // 10MB
-                val downloadedBytes = totalBytes * i / 100
-                _uiState.update { 
-                    it.copy(
-                        phoneDownloadProgress = DownloadProgress(
-                            bytesDownloaded = downloadedBytes,
-                            totalBytes = totalBytes,
-                            speedBytesPerSec = 1024 * 1024
-                        )
-                    )
-                }
+            val fileName = "${app.id}_phone.apk"
+            val result = downloadRepository.downloadApk(downloadUrl, fileName) { progress ->
+                _uiState.update { it.copy(phoneDownloadProgress = progress) }
             }
-            
-            addLog("Phone download complete.")
-            addLog("Triggering Package Installer...")
-            
-            delay(1000)
-            _uiState.update { 
-                it.copy(phoneInstalling = false, phoneDownloadProgress = null) 
+
+            result.onSuccess { apkFile ->
+                addLog("✓ Đã tải xong APK Mobile (${apkFile.length() / 1024} KB)")
+                addLog("Đang mở trình cài đặt Android...")
+                launchPackageInstaller(apkFile)
+                _uiState.update { it.copy(phoneInstalling = false, phoneDownloadProgress = null) }
+            }.onFailure { err ->
+                addLog("✗ Lỗi tải APK Mobile: ${err.localizedMessage}")
+                _uiState.update { it.copy(phoneInstalling = false, phoneDownloadProgress = null) }
             }
-            addLog("Phone installation process started.")
         }
     }
 
     fun installWatch() {
+        val app = _uiState.value.app?.app ?: return
+        val downloadUrl = app.watch?.downloadUrl
+        if (downloadUrl.isNullOrEmpty()) {
+            addLog("Không tìm thấy link tải APK cho Đồng hồ Wear OS!")
+            return
+        }
+
         viewModelScope.launch {
-            _uiState.update { it.copy(watchInstalling = true) }
-            addLog("Starting watch download...")
+            _uiState.update { it.copy(watchInstalling = true, watchDownloadProgress = null) }
+            addLog("Bắt đầu tải file APK Wear OS từ: $downloadUrl")
             
-            // Simulate download progress
-            for (i in 1..100 step 10) {
-                delay(200)
-                val totalBytes = 5L * 1024 * 1024 // 5MB
-                val downloadedBytes = totalBytes * i / 100
-                _uiState.update { 
-                    it.copy(
-                        watchDownloadProgress = DownloadProgress(
-                            bytesDownloaded = downloadedBytes,
-                            totalBytes = totalBytes,
-                            speedBytesPerSec = 512 * 1024
-                        )
-                    )
+            val fileName = "${app.id}_watch.apk"
+            val result = downloadRepository.downloadApk(downloadUrl, fileName) { progress ->
+                _uiState.update { it.copy(watchDownloadProgress = progress) }
+            }
+
+            result.onSuccess { apkFile ->
+                addLog("✓ Đã tải xong APK Wear OS (${apkFile.length() / 1024} KB)")
+                addLog("Kiểm tra kết nối Wireless ADB tới đồng hồ...")
+                
+                // Lấy thiết bị đã lưu
+                val savedDevices = adbRepository.getSavedDevices()
+                val targetDevice = savedDevices.firstOrNull()
+                if (targetDevice == null) {
+                    addLog("⚠️ Chưa kết nối đồng hồ qua ADB! Vui lòng vào trang 'Kết nối ADB' để thiết lập trước.")
+                    _uiState.update { it.copy(watchInstalling = false, watchDownloadProgress = null) }
+                    return@launch
                 }
+
+                addLog("Đang kết nối ADB tới ${targetDevice.host}:${targetDevice.port}...")
+                val connectResult = adbRepository.connect(targetDevice.host, targetDevice.port)
+                connectResult.onSuccess { dadb ->
+                    addLog("✓ Đã kết nối ADB! Đang đẩy file APK và cài đặt...")
+                    val pkgName = app.watch?.packageName ?: ""
+                    val installRes = adbRepository.installApk(dadb, apkFile, pkgName)
+                    when (installRes) {
+                        is InstallResult.Success -> {
+                            addLog("🎉 CÀI ĐẶT THÀNH CÔNG lên đồng hồ qua Wireless ADB!")
+                        }
+                        is InstallResult.Error -> {
+                            addLog("✗ Lỗi cài đặt ADB: ${installRes.message}")
+                            if (installRes.isSignatureConflict) {
+                                addLog("👉 Gợi ý: Gỡ bản cũ trên đồng hồ trước nếu bản cũ khác chữ ký.")
+                            }
+                        }
+                        is InstallResult.Cancelled -> {
+                            addLog("Tiến trình cài đặt bị hủy.")
+                        }
+                    }
+                    adbRepository.disconnect(dadb)
+                    _uiState.update { it.copy(watchInstalling = false, watchDownloadProgress = null) }
+                }.onFailure { connErr ->
+                    addLog("✗ Không thể kết nối ADB: ${connErr.localizedMessage}")
+                    addLog("👉 Hãy đảm bảo đồng hồ và điện thoại cùng mạng Wi-Fi và đã bật 'Gỡ lỗi qua Wi-Fi'.")
+                    _uiState.update { it.copy(watchInstalling = false, watchDownloadProgress = null) }
+                }
+            }.onFailure { err ->
+                addLog("✗ Lỗi tải APK Wear OS: ${err.localizedMessage}")
+                _uiState.update { it.copy(watchInstalling = false, watchDownloadProgress = null) }
             }
-            
-            addLog("Watch download complete.")
-            addLog("Installing via ADB...")
-            
-            delay(2000)
-            addLog("Watch installation successful.")
-            _uiState.update { 
-                it.copy(watchInstalling = false, watchDownloadProgress = null) 
+        }
+    }
+
+    private fun launchPackageInstaller(apkFile: File) {
+        try {
+            val context = getApplication<Application>()
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                apkFile
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            addLog("✗ Không thể mở PackageInstaller: ${e.localizedMessage}")
         }
     }
 

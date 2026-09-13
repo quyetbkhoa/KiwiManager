@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "repositoryName": "KiwiManager Catalog",
+  "updatedAt": "2026-09-14T00:00:00Z",
+  "apps": [
+    {
+      "id": "kiwi_manager",
+      "name": "Kiwi Manager",
+      "description": "App manager and catalog.",
+      "icon": "https://raw.githubusercontent.com/quyetbkhoa/KiwiManager/main/assets/kiwi_icon.png",
+      "githubRepo": "quyetbkhoa/KiwiManager",
+      "source": "github_releases",
+      "isManager": true,
+      "phone": {
+        "packageName": "com.kiwi.manager",
+        "assetPattern": "kiwi-manager",
+        "versionName": "",
+        "versionCode": 0,
+        "minSdk": 26
+      }
+    },
+    {
+      "id": "gemini_wear",
+      "name": "Gemini Wear",
+      "description": "AI Assistant for your watch.",
+      "icon": "https://raw.githubusercontent.com/quyetbkhoa/GeminiWear/main/assets/icon.png",
+      "githubRepo": "quyetbkhoa/GeminiWear",
+      "source": "github_releases",
+      "isManager": false,
+      "phone": {
+        "packageName": "com.kiwi.geminiwear",
+        "assetPattern": "phone",
+        "versionName": "",
+        "versionCode": 0,
+        "minSdk": 26
+      },
+      "watch": {
+        "packageName": "com.kiwi.geminiwear",
+        "assetPattern": "wear",
+        "versionName": "",
+        "versionCode": 0,
+        "minSdk": 28
+      }
+    },
+    {
+      "id": "open_navigation",
+      "name": "Open Navigation",
+      "description": "Navigation app for Android and WearOS.",
+      "icon": "https://raw.githubusercontent.com/quyetbkhoa/OpenNavigation/main/assets/icon.png",
+      "githubRepo": "quyetbkhoa/OpenNavigation",
+      "source": "github_releases",
+      "isManager": false,
+      "phone": {
+        "packageName": "com.kiwi.opennavigation",
+        "assetPattern": "phone",
+        "versionName": "",
+        "versionCode": 0,
+        "minSdk": 26
+      },
+      "watch": {
+        "packageName": "com.kiwi.opennavigation",
+        "assetPattern": "wear",
+        "versionName": "",
+        "versionCode": 0,
+        "minSdk": 28
+      }
+    },
+    {
+      "id": "custom_vibration",
+      "name": "Custom Vibration",
+      "description": "Custom vibration patterns for WearOS.",
+      "icon": "https://raw.githubusercontent.com/quyetbkhoa/CustomVibration/main/assets/icon.png",
+      "githubRepo": "quyetbkhoa/CustomVibration",
+      "source": "github_releases",
+      "isManager": false,
+      "watch": {
+        "packageName": "com.kiwi.customvibration",
+        "assetPattern": "wear",
+        "versionName": "",
+        "versionCode": 0,
+        "minSdk": 28
+      }
+    }
+  ]
+}

@@ -1,13 +1,26 @@
 package com.kiwi.manager.ui.navigation
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.kiwi.manager.domain.model.ThemeMode
+import com.kiwi.manager.ui.component.GlassBottomNav
+import com.kiwi.manager.ui.component.NavTab
 import com.kiwi.manager.ui.screen.adbconnect.AdbConnectScreen
 import com.kiwi.manager.ui.screen.adbconnect.AdbConnectViewModel
 import com.kiwi.manager.ui.screen.appdetail.AppDetailScreen
@@ -32,53 +45,96 @@ fun KiwiNavGraph(
     themeMode: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = Screen.Home.route
-    ) {
-        composable(route = Screen.Home.route) {
-            val viewModel: HomeViewModel = viewModel()
-            HomeScreen(
-                viewModel = viewModel,
-                onNavigateToAppDetail = { appId ->
-                    navController.navigate(Screen.AppDetail.createRoute(appId))
-                },
-                onNavigateToSettings = {
-                    navController.navigate(Screen.Settings.route)
-                },
-                onNavigateToAdbConnect = {
-                    navController.navigate(Screen.AdbConnect.route)
-                }
-            )
-        }
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Home.route
+    val isBottomNavVisible = currentRoute in listOf(
+        Screen.Home.route,
+        Screen.AdbConnect.route,
+        Screen.Settings.route
+    )
 
-        composable(
-            route = Screen.AppDetail.route,
-            arguments = listOf(navArgument("appId") { type = NavType.StringType })
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Home.route,
+            modifier = Modifier.fillMaxSize()
         ) {
-            val viewModel: AppDetailViewModel = viewModel()
-            AppDetailScreen(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToAdbConnect = { navController.navigate(Screen.AdbConnect.route) }
-            )
+            composable(route = Screen.Home.route) {
+                val viewModel: HomeViewModel = viewModel()
+                HomeScreen(
+                    viewModel = viewModel,
+                    onNavigateToAppDetail = { appId ->
+                        navController.navigate(Screen.AppDetail.createRoute(appId))
+                    },
+                    onNavigateToAdbConnect = {
+                        navController.navigate(Screen.AdbConnect.route) {
+                            popUpTo(Screen.Home.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
+            }
+
+            composable(
+                route = Screen.AppDetail.route,
+                arguments = listOf(navArgument("appId") { type = NavType.StringType })
+            ) {
+                val viewModel: AppDetailViewModel = viewModel()
+                AppDetailScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToAdbConnect = {
+                        navController.navigate(Screen.AdbConnect.route)
+                    }
+                )
+            }
+
+            composable(route = Screen.AdbConnect.route) {
+                val viewModel: AdbConnectViewModel = viewModel()
+                AdbConnectScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            composable(route = Screen.Settings.route) {
+                val viewModel: SettingsViewModel = viewModel()
+                SettingsScreen(
+                    viewModel = viewModel,
+                    themeMode = themeMode,
+                    onThemeChange = onThemeChange,
+                    onNavigateBack = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
         }
 
-        composable(route = Screen.AdbConnect.route) {
-            val viewModel: AdbConnectViewModel = viewModel()
-            AdbConnectScreen(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(route = Screen.Settings.route) {
-            val viewModel: SettingsViewModel = viewModel()
-            SettingsScreen(
-                viewModel = viewModel,
-                themeMode = themeMode,
-                onThemeChange = onThemeChange,
-                onNavigateBack = { navController.popBackStack() }
+        // Floating Glass Bottom Navigation Bar
+        AnimatedVisibility(
+            visible = isBottomNavVisible,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            GlassBottomNav(
+                currentRoute = currentRoute,
+                onTabSelected = { tab ->
+                    if (currentRoute != tab.route) {
+                        navController.navigate(tab.route) {
+                            popUpTo(Screen.Home.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                }
             )
         }
     }
