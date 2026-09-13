@@ -193,6 +193,18 @@ class CatalogRepository(
 
     private fun checkPhoneStatus(app: AppInfo, installed: InstalledVersionInfo?): InstallStatus {
         if (installed == null || !installed.isInstalled) return InstallStatus.NOT_INSTALLED
+        
+        val catalogVersionName = app.phone?.versionName.orEmpty().trim()
+        val installedVersionName = installed.versionName.trim()
+
+        if (catalogVersionName.isNotEmpty() && installedVersionName.isNotEmpty()) {
+            return if (VersionComparator.isNewer(catalogVersionName, installedVersionName)) {
+                InstallStatus.UPDATE_AVAILABLE
+            } else {
+                InstallStatus.UP_TO_DATE
+            }
+        }
+
         val catalogVersionCode = app.phone?.versionCode ?: 0
         return if (catalogVersionCode > installed.versionCode) {
             InstallStatus.UPDATE_AVAILABLE

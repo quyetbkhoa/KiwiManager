@@ -73,6 +73,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun reloadLocalStatus() {
+        viewModelScope.launch {
+            val cached = catalogRepository.getCachedApps()
+            if (cached.isNotEmpty()) {
+                _uiState.update { it.copy(apps = cached) }
+            }
+        }
+    }
+
     fun onRetry() {
         refreshCatalog()
     }

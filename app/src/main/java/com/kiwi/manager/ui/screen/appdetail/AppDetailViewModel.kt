@@ -67,6 +67,15 @@ class AppDetailViewModel(
         }
     }
 
+    fun refreshInstalledStatus() {
+        viewModelScope.launch {
+            val appDisplay = catalogRepository.getApp(appId)
+            if (appDisplay != null) {
+                _uiState.update { it.copy(app = appDisplay) }
+            }
+        }
+    }
+
     fun installPhone() {
         val currentDisplay = _uiState.value.app ?: return
         viewModelScope.launch {

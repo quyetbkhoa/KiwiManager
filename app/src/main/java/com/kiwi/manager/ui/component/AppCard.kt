@@ -31,13 +31,18 @@ import com.kiwi.manager.domain.model.AppDisplayInfo
 import com.kiwi.manager.ui.theme.GlassBorderGradient
 import com.kiwi.manager.ui.theme.KiwiNeon
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+
 @Composable
 fun AppCard(
     appDisplayInfo: AppDisplayInfo,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isPressed by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.97f else 1f,
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
@@ -57,19 +62,14 @@ fun AppCard(
         modifier = modifier
             .fillMaxWidth()
             .scale(scale)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        tryAwaitRelease()
-                        isPressed = false
-                    },
-                    onTap = { onClick() }
-                )
-            }
             .clip(RoundedCornerShape(26.dp))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
             .border(1.dp, GlassBorderGradient, RoundedCornerShape(26.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
             .padding(18.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
