@@ -8,6 +8,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +29,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kiwi.manager.ui.theme.KiwiNeon
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
@@ -91,95 +95,115 @@ fun HomeScreen(
                 }
             }
 
-            // Main Content
-            if (uiState.isLoading && uiState.apps.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
+            val pullRefreshState = rememberPullToRefreshState()
+
+            // Main Content with Pull-To-Refresh
+            PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh = { viewModel.refreshCatalog() },
+                state = pullRefreshState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullRefreshState,
+                        isRefreshing = uiState.isRefreshing,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         color = KiwiNeon,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.align(Alignment.TopCenter)
                     )
                 }
-            } else if (uiState.error != null && uiState.apps.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Không thể tải kho ứng dụng",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = uiState.error ?: "",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        TactilePillButton(
-                            text = "Thử lại",
-                            onClick = { viewModel.onRetry() }
+            ) {
+                if (uiState.isLoading && uiState.apps.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = KiwiNeon,
+                            modifier = Modifier.size(36.dp)
                         )
                     }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 20.dp,
-                        end = 20.dp,
-                        top = 10.dp,
-                        bottom = 110.dp // Spacing for floating bottom bar
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    // Summary Widget
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                } else if (uiState.error != null && uiState.apps.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "KHO ỨNG DỤNG (${uiState.apps.size})",
-                                fontSize = 12.sp,
+                                text = "Không thể tải kho ứng dụng",
+                                fontSize = 17.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                letterSpacing = 1.sp
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                            if (updatesCount > 0) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFFFF9100).copy(alpha = 0.18f))
-                                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "$updatesCount bản cập nhật",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFFFB74D)
-                                    )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = uiState.error ?: "",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            TactilePillButton(
+                                text = "Thử lại",
+                                onClick = { viewModel.onRetry() }
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 10.dp,
+                            bottom = 110.dp // Spacing for floating bottom bar
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // Summary Widget
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "KHO ỨNG DỤNG (${uiState.apps.size})",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    letterSpacing = 1.sp
+                                )
+                                if (updatesCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0xFFFF9100).copy(alpha = 0.18f))
+                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "$updatesCount bản cập nhật",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFFB74D)
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // App Bento Cards
-                    items(uiState.apps, key = { it.app.id }) { appDisplayInfo ->
-                        AppCard(
-                            appDisplayInfo = appDisplayInfo,
-                            onClick = { onNavigateToAppDetail(appDisplayInfo.app.id) }
-                        )
+                        // App Bento Cards
+                        items(uiState.apps, key = { it.app.id }) { appDisplayInfo ->
+                            AppCard(
+                                appDisplayInfo = appDisplayInfo,
+                                onClick = { onNavigateToAppDetail(appDisplayInfo.app.id) }
+                            )
+                        }
                     }
                 }
             }
