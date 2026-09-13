@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kiwi Manager</string>
+    <string name="home_title">Home</string>
+    <string name="settings_title">Settings</string>
+    <string name="adb_connect_title">ADB Connect</string>
+    <string name="app_detail_title">App Detail</string>
+    <string name="status_not_installed">Not Installed</string>
+    <string name="status_update_available">Update Available</string>
+    <string name="status_up_to_date">Up to Date</string>
+    <string name="btn_install">Install</string>
+    <string name="btn_update">Update</string>
+    <string name="btn_reinstall">Reinstall</string>
+    <string name="btn_open_app">Open App</string>
+    <string name="btn_refresh_catalog">Refresh Catalog</string>
+    <string name="btn_check_connection">Check Connection</string>
+    <string name="btn_connect_adb">Connect ADB</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_oled">OLED Black</string>
+    <string name="offline_badge">Offline</string>
+    <string name="loading_text">Loading...</string>
+</resources>
