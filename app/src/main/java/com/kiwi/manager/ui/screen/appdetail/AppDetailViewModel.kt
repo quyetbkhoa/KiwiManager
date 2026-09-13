@@ -3,6 +3,8 @@ package com.kiwi.manager.ui.screen.appdetail
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -66,16 +68,26 @@ class AppDetailViewModel(
     }
 
     fun installPhone() {
-        val app = _uiState.value.app?.app ?: return
-        val downloadUrl = app.phone?.downloadUrl
-        if (downloadUrl.isNullOrEmpty()) {
-            addLog("Không tìm thấy link tải APK cho Mobile!")
-            return
-        }
-
+        val currentDisplay = _uiState.value.app ?: return
         viewModelScope.launch {
+            var app = currentDisplay.app
+            var downloadUrl = app.phone?.downloadUrl
+
+            if (downloadUrl.isNullOrEmpty()) {
+                addLog("Đang truy xuất link tải mới nhất từ GitHub...")
+                val refreshed = catalogRepository.refreshSingleApp(app)
+                _uiState.update { it.copy(app = refreshed) }
+                app = refreshed.app
+                downloadUrl = app.phone?.downloadUrl
+            }
+
+            if (downloadUrl.isNullOrEmpty()) {
+                addLog("✗ Không tìm thấy link tải APK cho Mobile trên GitHub Release!")
+                return@launch
+            }
+
             _uiState.update { it.copy(phoneInstalling = true, phoneDownloadProgress = null) }
-            addLog("Bắt đầu tải file APK Mobile từ: $downloadUrl")
+            addLog("Bắt đầu tải file APK Mobile...")
             
             val fileName = "${app.id}_phone.apk"
             val result = downloadRepository.downloadApk(downloadUrl, fileName) { progress ->
@@ -95,16 +107,26 @@ class AppDetailViewModel(
     }
 
     fun installWatch() {
-        val app = _uiState.value.app?.app ?: return
-        val downloadUrl = app.watch?.downloadUrl
-        if (downloadUrl.isNullOrEmpty()) {
-            addLog("Không tìm thấy link tải APK cho Đồng hồ Wear OS!")
-            return
-        }
-
+        val currentDisplay = _uiState.value.app ?: return
         viewModelScope.launch {
+            var app = currentDisplay.app
+            var downloadUrl = app.watch?.downloadUrl
+
+            if (downloadUrl.isNullOrEmpty()) {
+                addLog("Đang truy xuất link tải APK Wear OS từ GitHub...")
+                val refreshed = catalogRepository.refreshSingleApp(app)
+                _uiState.update { it.copy(app = refreshed) }
+                app = refreshed.app
+                downloadUrl = app.watch?.downloadUrl
+            }
+
+            if (downloadUrl.isNullOrEmpty()) {
+                addLog("✗ Không tìm thấy link tải APK cho Đồng hồ Wear OS!")
+                return@launch
+            }
+
             _uiState.update { it.copy(watchInstalling = true, watchDownloadProgress = null) }
-            addLog("Bắt đầu tải file APK Wear OS từ: $downloadUrl")
+            addLog("Bắt đầu tải file APK Wear OS...")
             
             val fileName = "${app.id}_watch.apk"
             val result = downloadRepository.downloadApk(downloadUrl, fileName) { progress ->
@@ -161,6 +183,18 @@ class AppDetailViewModel(
     private fun launchPackageInstaller(apkFile: File) {
         try {
             val context = getApplication<Application>()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManagerWrapper.canInstallPackages()) {
+                addLog("👉 Cần cấp quyền 'Cài đặt nguồn không xác định' cho Kiwi Manager...")
+                val manageIntent = Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:${context.packageName}")
+                ).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(manageIntent)
+                return
+            }
+
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",

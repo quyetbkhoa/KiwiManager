@@ -74,16 +74,53 @@ class CatalogRepository(
         } else {
             try {
                 val manifest = json.decodeFromString<CatalogManifest>(cachedJson)
-                manifest.apps.map { resolveAppDisplayInfo(it) }
+                // Invalidate old cache if schemaVersion < 2 or apps list is outdated
+                if (manifest.schemaVersion < 2) {
+                    val bundled = context.assets.open("catalog.json").bufferedReader().use { it.readText() }
+                    dataStoreManager.setCachedCatalog(bundled)
+                    val newManifest = json.decodeFromString<CatalogManifest>(bundled)
+                    newManifest.apps.map { resolveAppDisplayInfo(it) }
+                } else {
+                    manifest.apps.map { resolveAppDisplayInfo(it) }
+                }
             } catch (e: Exception) {
-                emptyList()
+                // If decoding fails, fallback to bundled assets
+                try {
+                    val bundled = context.assets.open("catalog.json").bufferedReader().use { it.readText() }
+                    dataStoreManager.setCachedCatalog(bundled)
+                    val newManifest = json.decodeFromString<CatalogManifest>(bundled)
+                    newManifest.apps.map { resolveAppDisplayInfo(it) }
+                } catch (_: Exception) {
+                    emptyList()
+                }
             }
         }
     }
 
     suspend fun getApp(appId: String): AppDisplayInfo? = withContext(Dispatchers.IO) {
         val apps = getCachedApps()
-        apps.find { it.app.id == appId }
+        val item = apps.find { it.app.id == appId } ?: return@withContext null
+        val phoneMissing = item.app.phone != null && item.app.phone.downloadUrl.isNullOrEmpty()
+        val watchMissing = item.app.watch != null && item.app.watch.downloadUrl.isNullOrEmpty()
+        if ((phoneMissing || watchMissing) && item.app.source == "github_releases") {
+            try {
+                val updatedApp = resolveGitHubVersions(item.app)
+                return@withContext resolveAppDisplayInfo(updatedApp)
+            } catch (_: Exception) {
+                // Ignore network errors, return item as is
+            }
+        }
+        item
+    }
+
+    suspend fun refreshSingleApp(app: AppInfo): AppDisplayInfo = withContext(Dispatchers.IO) {
+        if (app.source == "github_releases") {
+            try {
+                val updatedApp = resolveGitHubVersions(app)
+                return@withContext resolveAppDisplayInfo(updatedApp)
+            } catch (_: Exception) {}
+        }
+        resolveAppDisplayInfo(app)
     }
 
     private fun resolveAppDisplayInfo(app: AppInfo): AppDisplayInfo {
@@ -138,15 +175,20 @@ class CatalogRepository(
 
     private fun matchesPattern(assetName: String, pattern: String): Boolean {
         if (pattern.isEmpty()) return true
-        val regex = pattern
-            .replace(".", "\\.")
-            .replace("*", ".*")
-            .replace("?", ".")
-        return try {
-            Regex(regex, RegexOption.IGNORE_CASE).matches(assetName)
-        } catch (_: Exception) {
-            assetName.contains(pattern.replace("*", ""), ignoreCase = true)
+        val cleanP = pattern.trim().lowercase()
+        val cleanA = assetName.trim().lowercase()
+        if (cleanP.contains("*") || cleanP.contains("?")) {
+            val regex = cleanP
+                .replace(".", "\\.")
+                .replace("*", ".*")
+                .replace("?", ".")
+            return try {
+                Regex(regex, RegexOption.IGNORE_CASE).matches(cleanA)
+            } catch (_: Exception) {
+                cleanA.contains(cleanP.replace("*", "").replace("?", ""))
+            }
         }
+        return cleanA.contains(cleanP)
     }
 
     private fun checkPhoneStatus(app: AppInfo, installed: InstalledVersionInfo?): InstallStatus {
