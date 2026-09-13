@@ -60,8 +60,9 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(horizontal = 20.dp)
-                .padding(top = 16.dp, bottom = 100.dp)
+                .padding(top = 12.dp, bottom = 100.dp)
         ) {
             // Header
             Row(
@@ -229,6 +230,7 @@ fun ModernThemeCard(
     Box(
         modifier = modifier
             .scale(scale)
+            .height(116.dp)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -249,26 +251,34 @@ fun ModernThemeCard(
                 if (isSelected) KiwiNeon else Color.White.copy(alpha = 0.12f),
                 RoundedCornerShape(20.dp)
             )
-            .padding(vertical = 16.dp),
+            .padding(horizontal = 8.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
             Text(text = icon, fontSize = 28.sp)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = title,
                 fontSize = 14.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 color = if (isSelected) KiwiNeon else MaterialTheme.colorScheme.onSurface
             )
-            if (isSelected) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = KiwiNeon,
-                    modifier = Modifier.size(14.dp)
-                )
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier.size(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = KiwiNeon,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
         }
     }

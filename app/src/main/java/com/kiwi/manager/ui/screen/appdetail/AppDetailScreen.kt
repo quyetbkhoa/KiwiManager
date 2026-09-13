@@ -52,8 +52,10 @@ fun AppDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
-                .padding(top = 16.dp, bottom = 24.dp)
+                .padding(top = 12.dp, bottom = 24.dp)
         ) {
             // Header Bar
             Row(
@@ -302,8 +304,10 @@ fun BentoPlatformActionWidget(
                     text = title,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
+                Spacer(modifier = Modifier.width(8.dp))
                 StatusBadge(status = status, latestVersion = latestVersion)
             }
 

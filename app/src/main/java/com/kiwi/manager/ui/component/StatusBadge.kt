@@ -75,7 +75,9 @@ fun StatusBadge(
                 text = label,
                 color = if (status == InstallStatus.UP_TO_DATE) KiwiNeon else Color.White,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false
             )
         }
     }

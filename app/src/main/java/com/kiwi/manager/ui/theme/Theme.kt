@@ -58,9 +58,14 @@ fun KiwiManagerTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
-            window.statusBarColor = Color.Transparent.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = themeMode == ThemeMode.LIGHT
+            val activity = view.context as? Activity
+            activity?.window?.let { window ->
+                window.statusBarColor = Color.Transparent.toArgb()
+                window.navigationBarColor = Color.Transparent.toArgb()
+                val controller = WindowCompat.getInsetsController(window, view)
+                controller.isAppearanceLightStatusBars = themeMode == ThemeMode.LIGHT
+                controller.isAppearanceLightNavigationBars = themeMode == ThemeMode.LIGHT
+            }
         }
     }
 

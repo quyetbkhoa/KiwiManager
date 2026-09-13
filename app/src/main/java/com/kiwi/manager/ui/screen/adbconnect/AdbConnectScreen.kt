@@ -60,8 +60,9 @@ fun AdbConnectScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(horizontal = 20.dp)
-                .padding(top = 16.dp, bottom = 100.dp)
+                .padding(top = 12.dp, bottom = 100.dp)
         ) {
             // Header
             Row(

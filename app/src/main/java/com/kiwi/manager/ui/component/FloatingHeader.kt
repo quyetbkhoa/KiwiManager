@@ -57,7 +57,8 @@ fun FloatingHeader(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .statusBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         Box(
             modifier = Modifier
