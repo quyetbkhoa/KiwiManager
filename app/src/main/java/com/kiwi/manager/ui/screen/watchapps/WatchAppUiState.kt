@@ -7,6 +7,8 @@ enum class WatchAppFilter(val label: String) {
     USER("Người dùng"),
     SYSTEM("Hệ thống"),
     RUNNING("Đang chạy"),
+    DISABLED("Vô hiệu hóa"),
+    UNINSTALLED("Đã gỡ (U0)"),
     ALL("Tất cả")
 }
 
@@ -21,7 +23,7 @@ data class WatchAppUiState(
     val deviceInfo: WatchDeviceInfo? = null,
     val apps: List<WatchAppInfo> = emptyList(),
     val searchQuery: String = "",
-    val activeFilter: WatchAppFilter = WatchAppFilter.USER,
+    val activeFilter: WatchAppFilter = WatchAppFilter.ALL,
     val selectedAppForDetails: WatchAppInfo? = null,
     val selectedAppDumpsys: String? = null,
     val isLoadingDetails: Boolean = false,
@@ -32,9 +34,11 @@ data class WatchAppUiState(
             val query = searchQuery.trim().lowercase()
             return apps.filter { app ->
                 val matchesFilter = when (activeFilter) {
-                    WatchAppFilter.USER -> !app.isSystemApp
-                    WatchAppFilter.SYSTEM -> app.isSystemApp
-                    WatchAppFilter.RUNNING -> app.isRunning
+                    WatchAppFilter.USER -> !app.isSystemApp && !app.isUninstalledUser0
+                    WatchAppFilter.SYSTEM -> app.isSystemApp && !app.isUninstalledUser0
+                    WatchAppFilter.RUNNING -> app.isRunning && !app.isUninstalledUser0
+                    WatchAppFilter.DISABLED -> !app.isEnabled && !app.isUninstalledUser0
+                    WatchAppFilter.UNINSTALLED -> app.isUninstalledUser0
                     WatchAppFilter.ALL -> true
                 }
                 val matchesSearch = query.isEmpty() ||
@@ -45,11 +49,17 @@ data class WatchAppUiState(
         }
 
     val userAppCount: Int
-        get() = apps.count { !it.isSystemApp }
+        get() = apps.count { !it.isSystemApp && !it.isUninstalledUser0 }
 
     val systemAppCount: Int
-        get() = apps.count { it.isSystemApp }
+        get() = apps.count { it.isSystemApp && !it.isUninstalledUser0 }
 
     val runningAppCount: Int
-        get() = apps.count { it.isRunning }
+        get() = apps.count { it.isRunning && !it.isUninstalledUser0 }
+
+    val disabledAppCount: Int
+        get() = apps.count { !it.isEnabled && !it.isUninstalledUser0 }
+
+    val uninstalledAppCount: Int
+        get() = apps.count { it.isUninstalledUser0 }
 }

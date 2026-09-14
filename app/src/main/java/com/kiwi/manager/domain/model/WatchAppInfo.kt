@@ -11,5 +11,6 @@ data class WatchAppInfo(
     val isSystemApp: Boolean = false,
     val isRunning: Boolean = false,
     val isEnabled: Boolean = true,
+    val isUninstalledUser0: Boolean = false,
     val apkPath: String? = null
 )

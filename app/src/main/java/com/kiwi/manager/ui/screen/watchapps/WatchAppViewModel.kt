@@ -140,7 +140,7 @@ class WatchAppViewModel(application: Application) : AndroidViewModel(application
                     it.copy(
                         isActionInProgress = false,
                         currentActionPackage = null,
-                        actionFeedbackMessage = "✗ Lỗi khi tắt app: ${err.localizedMessage}"
+                        actionFeedbackMessage = "✗ ${err.localizedMessage}"
                     )
                 }
             }
@@ -178,7 +178,7 @@ class WatchAppViewModel(application: Application) : AndroidViewModel(application
                     it.copy(
                         isActionInProgress = false,
                         currentActionPackage = null,
-                        actionFeedbackMessage = "✗ Lỗi khi mở app: ${err.localizedMessage}"
+                        actionFeedbackMessage = "✗ ${err.localizedMessage}"
                     )
                 }
             }
@@ -212,7 +212,7 @@ class WatchAppViewModel(application: Application) : AndroidViewModel(application
                     it.copy(
                         isActionInProgress = false,
                         currentActionPackage = null,
-                        actionFeedbackMessage = "✗ Lỗi xóa dữ liệu: ${err.localizedMessage}"
+                        actionFeedbackMessage = "✗ ${err.localizedMessage}"
                     )
                 }
             }
@@ -237,7 +237,12 @@ class WatchAppViewModel(application: Application) : AndroidViewModel(application
             result.onSuccess {
                 _uiState.update { state ->
                     val updated = state.apps.map {
-                        if (it.packageName == app.packageName) it.copy(isEnabled = targetEnable) else it
+                        if (it.packageName == app.packageName) {
+                            it.copy(
+                                isEnabled = targetEnable,
+                                isRunning = if (!targetEnable) false else it.isRunning
+                            )
+                        } else it
                     }
                     state.copy(
                         apps = updated,
@@ -251,7 +256,7 @@ class WatchAppViewModel(application: Application) : AndroidViewModel(application
                     it.copy(
                         isActionInProgress = false,
                         currentActionPackage = null,
-                        actionFeedbackMessage = "✗ Lỗi đổi trạng thái app: ${err.localizedMessage}"
+                        actionFeedbackMessage = "✗ ${err.localizedMessage}"
                     )
                 }
             }
@@ -281,12 +286,20 @@ class WatchAppViewModel(application: Application) : AndroidViewModel(application
             val result = adbRepository.uninstallApp(app.packageName, app.isSystemApp)
             result.onSuccess {
                 _uiState.update { state ->
-                    val updated = state.apps.filter { it.packageName != app.packageName }
+                    val updated = if (app.isSystemApp) {
+                        state.apps.map {
+                            if (it.packageName == app.packageName) {
+                                it.copy(isUninstalledUser0 = true, isEnabled = false, isRunning = false)
+                            } else it
+                        }
+                    } else {
+                        state.apps.filter { it.packageName != app.packageName }
+                    }
                     state.copy(
                         apps = updated,
                         isActionInProgress = false,
                         currentActionPackage = null,
-                        actionFeedbackMessage = "✓ Đã gỡ cài đặt ${app.appName}"
+                        actionFeedbackMessage = "✓ Đã gỡ cài đặt ${app.appName} ${if (app.isSystemApp) "(User 0)" else ""}"
                     )
                 }
             }.onFailure { err ->
@@ -294,7 +307,47 @@ class WatchAppViewModel(application: Application) : AndroidViewModel(application
                     it.copy(
                         isActionInProgress = false,
                         currentActionPackage = null,
-                        actionFeedbackMessage = "✗ Lỗi gỡ ứng dụng: ${err.localizedMessage}"
+                        actionFeedbackMessage = "✗ ${err.localizedMessage}"
+                    )
+                }
+            }
+            clearFeedbackMessageDelayed()
+        }
+    }
+
+    /**
+     * Khôi phục ứng dụng hệ thống đã gỡ ở User 0
+     */
+    fun restoreSystemApp(app: WatchAppInfo) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isActionInProgress = true,
+                    currentActionPackage = app.packageName
+                )
+            }
+
+            val result = adbRepository.restoreSystemApp(app.packageName)
+            result.onSuccess {
+                _uiState.update { state ->
+                    val updated = state.apps.map {
+                        if (it.packageName == app.packageName) {
+                            it.copy(isUninstalledUser0 = false, isEnabled = true)
+                        } else it
+                    }
+                    state.copy(
+                        apps = updated,
+                        isActionInProgress = false,
+                        currentActionPackage = null,
+                        actionFeedbackMessage = "✓ Đã khôi phục ${app.appName} thành công"
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(
+                        isActionInProgress = false,
+                        currentActionPackage = null,
+                        actionFeedbackMessage = "✗ ${err.localizedMessage}"
                     )
                 }
             }

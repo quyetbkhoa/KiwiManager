@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.kiwi.manager.domain.model.AdbDevice
+import com.kiwi.manager.domain.model.InstalledVersionInfo
 import com.kiwi.manager.domain.model.ThemeMode
 import com.kiwi.manager.util.Constants
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,7 @@ class DataStoreManager(private val context: Context) {
         val SAVED_DEVICES_KEY = stringPreferencesKey("saved_adb_devices")
         val CACHED_CATALOG_KEY = stringPreferencesKey("cached_catalog_json")
         val LAST_CATALOG_REFRESH_KEY = longPreferencesKey("last_catalog_refresh")
+        val WATCH_INSTALLED_APPS_KEY = stringPreferencesKey("watch_installed_apps_json")
     }
 
     val themeFlow: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
@@ -75,6 +77,36 @@ class DataStoreManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[CACHED_CATALOG_KEY] = catalogJson
             prefs[LAST_CATALOG_REFRESH_KEY] = System.currentTimeMillis()
+        }
+    }
+
+    suspend fun getWatchInstalledApps(): Map<String, InstalledVersionInfo> = withContext(Dispatchers.IO) {
+        val prefs = context.dataStore.data.first()
+        val jsonStr = prefs[WATCH_INSTALLED_APPS_KEY]
+        if (jsonStr.isNullOrEmpty()) {
+            emptyMap()
+        } else {
+            try {
+                Json.decodeFromString<Map<String, InstalledVersionInfo>>(jsonStr)
+            } catch (e: Exception) {
+                emptyMap()
+            }
+        }
+    }
+
+    suspend fun saveWatchInstalledApp(info: InstalledVersionInfo) = withContext(Dispatchers.IO) {
+        val current = getWatchInstalledApps().toMutableMap()
+        current[info.packageName] = info
+        context.dataStore.edit { prefs ->
+            prefs[WATCH_INSTALLED_APPS_KEY] = Json.encodeToString(current)
+        }
+    }
+
+    suspend fun saveAllWatchInstalledApps(apps: Map<String, InstalledVersionInfo>) = withContext(Dispatchers.IO) {
+        val current = getWatchInstalledApps().toMutableMap()
+        current.putAll(apps)
+        context.dataStore.edit { prefs ->
+            prefs[WATCH_INSTALLED_APPS_KEY] = Json.encodeToString(current)
         }
     }
 }

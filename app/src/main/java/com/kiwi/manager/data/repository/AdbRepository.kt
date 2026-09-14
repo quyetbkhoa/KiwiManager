@@ -37,7 +37,8 @@ class AdbRepository(private val dataStoreManager: DataStoreManager) {
     suspend fun getWatchDeviceInfo(): WatchDeviceInfo? = AdbConnectionManager.refreshDeviceInfo()
 
     /**
-     * Lấy danh sách toàn bộ ứng dụng trên đồng hồ qua ADB, phân loại User/System và kiểm tra app đang chạy.
+     * Lấy danh sách toàn bộ ứng dụng trên đồng hồ qua ADB, phân loại User/System, kiểm tra app đang chạy,
+     * app bị vô hiệu hóa, và app hệ thống đã gỡ ở User 0.
      */
     suspend fun getInstalledWatchApps(): Result<List<WatchAppInfo>> = withContext(Dispatchers.IO) {
         try {
@@ -59,7 +60,14 @@ class AdbRepository(private val dataStoreManager: DataStoreManager) {
                 .filter { it.isNotEmpty() }
                 .toSet()
 
-            // 4. Lấy danh sách tiến trình đang chạy (ps -A)
+            // 4. Lấy danh sách Uninstalled Apps (-u) để phát hiện system apps đã bị debloat cho User 0
+            val uninstalledOutput = dadb.shell("pm list packages -u").output
+            val allPackagesSet = uninstalledOutput.lines()
+                .map { it.trim().removePrefix("package:") }
+                .filter { it.isNotEmpty() }
+                .toSet()
+
+            // 5. Lấy danh sách tiến trình đang chạy (ps -A)
             val psOutput = dadb.shell("ps -A").output
             val runningSet = mutableSetOf<String>()
             psOutput.lines().forEach { line ->
@@ -84,6 +92,7 @@ class AdbRepository(private val dataStoreManager: DataStoreManager) {
                         isSystemApp = false,
                         isRunning = isRunning,
                         isEnabled = isEnabled,
+                        isUninstalledUser0 = false,
                         apkPath = apkPath
                     )
                 )
@@ -100,27 +109,47 @@ class AdbRepository(private val dataStoreManager: DataStoreManager) {
                         isSystemApp = true,
                         isRunning = isRunning,
                         isEnabled = isEnabled,
+                        isUninstalledUser0 = false,
                         apkPath = apkPath
                     )
                 )
+            }
+
+            // Thêm các app hệ thống đã gỡ ở User 0 (xuất hiện trong -u nhưng không có trong userMap và sysMap)
+            allPackagesSet.forEach { pkg ->
+                if (!userMap.containsKey(pkg) && !sysMap.containsKey(pkg)) {
+                    allApps.add(
+                        WatchAppInfo(
+                            packageName = pkg,
+                            appName = formatFriendlyAppName(pkg),
+                            isSystemApp = true,
+                            isRunning = false,
+                            isEnabled = false,
+                            isUninstalledUser0 = true,
+                            apkPath = null
+                        )
+                    )
+                }
             }
 
             // Cập nhật số lượng app vào WatchDeviceInfo
             AdbConnectionManager.deviceInfo.value?.let { currentInfo ->
                 AdbConnectionManager.updateDeviceInfo(
                     currentInfo.copy(
-                        totalApps = allApps.size,
+                        totalApps = allApps.count { !it.isUninstalledUser0 },
                         userApps = userMap.size,
                         systemApps = sysMap.size,
-                        runningApps = allApps.count { it.isRunning }
+                        runningApps = allApps.count { it.isRunning && !it.isUninstalledUser0 }
                     )
                 )
             }
 
-            // Sắp xếp: User apps lên trước, sau đó theo tên
+            // Sắp xếp: User apps lên trước, sau đó theo trạng thái chạy, trạng thái bật và tên
             val sorted = allApps.sortedWith(
-                compareBy<WatchAppInfo> { it.isSystemApp }
+                compareBy<WatchAppInfo> { it.isUninstalledUser0 }
+                    .thenBy { it.isSystemApp }
                     .thenByDescending { it.isRunning }
+                    .thenByDescending { it.isEnabled }
                     .thenBy { it.appName.lowercase() }
             )
 
@@ -131,71 +160,154 @@ class AdbRepository(private val dataStoreManager: DataStoreManager) {
     }
 
     /**
-     * Tắt / Buộc dừng ứng dụng trên đồng hồ
+     * Tắt / Buộc dừng ứng dụng trên đồng hồ (báo thật dựa trên exit code)
      */
     suspend fun forceStopApp(packageName: String): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val res = AdbConnectionManager.executeShell("am force-stop $packageName")
-            res
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        val res = AdbConnectionManager.executeShellRaw("am force-stop $packageName")
+        res.fold(
+            onSuccess = { response ->
+                if (response.exitCode != 0) {
+                    val cleanMsg = extractCleanErrorMessage(response.allOutput, "Không thể dừng ứng dụng")
+                    Result.failure(Exception(cleanMsg))
+                } else {
+                    Result.success("Đã dừng ứng dụng $packageName")
+                }
+            },
+            onFailure = { e -> Result.failure(e) }
+        )
     }
 
     /**
-     * Khởi chạy ứng dụng trên đồng hồ
+     * Khởi chạy ứng dụng trên đồng hồ (kiểm tra thật xem có Launcher Activity không)
      */
     suspend fun launchApp(packageName: String): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            // Dùng monkey để mở launcher activity mặc định mà không cần biết Activity class
-            val res = AdbConnectionManager.executeShell("monkey -p $packageName -c android.intent.category.LAUNCHER 1")
-            res
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        val res = AdbConnectionManager.executeShellRaw("monkey -p $packageName -c android.intent.category.LAUNCHER 1")
+        res.fold(
+            onSuccess = { response ->
+                val text = response.allOutput.trim()
+                if (text.contains("No activities found to run", ignoreCase = true)) {
+                    Result.failure(Exception("Ứng dụng không có màn hình mở (đây là dịch vụ chạy nền)"))
+                } else if (text.contains("Events injected: 1", ignoreCase = true)) {
+                    Result.success("Đã mở ứng dụng")
+                } else if (response.exitCode != 0 || text.contains("Exception", ignoreCase = true)) {
+                    Result.failure(Exception(extractCleanErrorMessage(text, "Không thể mở ứng dụng")))
+                } else {
+                    Result.success("Đã gửi lệnh mở")
+                }
+            },
+            onFailure = { e -> Result.failure(e) }
+        )
     }
 
     /**
-     * Xóa dữ liệu và bộ nhớ đệm của ứng dụng
+     * Xóa dữ liệu và bộ nhớ đệm của ứng dụng (báo thật)
      */
     suspend fun clearAppData(packageName: String): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val res = AdbConnectionManager.executeShell("pm clear $packageName")
-            res
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        val res = AdbConnectionManager.executeShellRaw("pm clear $packageName")
+        res.fold(
+            onSuccess = { response ->
+                val text = response.allOutput.trim()
+                if (text.contains("Success", ignoreCase = true)) {
+                    Result.success("Đã xóa dữ liệu của $packageName")
+                } else {
+                    Result.failure(Exception(extractCleanErrorMessage(text, "Không thể xóa dữ liệu (Hệ thống từ chối)")))
+                }
+            },
+            onFailure = { e -> Result.failure(e) }
+        )
     }
 
     /**
-     * Vô hiệu hóa hoặc kích hoạt lại ứng dụng
+     * Vô hiệu hóa hoặc kích hoạt lại ứng dụng (báo thật 100%, kiểm tra lỗi SecurityException hoặc exitCode)
      */
     suspend fun setAppEnabled(packageName: String, enable: Boolean): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val cmd = if (enable) "pm enable $packageName" else "pm disable-user --user 0 $packageName"
-            val res = AdbConnectionManager.executeShell(cmd)
-            res
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        val cmd = if (enable) "pm enable $packageName" else "pm disable-user --user 0 $packageName"
+        val res = AdbConnectionManager.executeShellRaw(cmd)
+        res.fold(
+            onSuccess = { response ->
+                val text = response.allOutput.trim()
+                val exitCode = response.exitCode
+
+                if (exitCode != 0 || text.contains("Exception", ignoreCase = true) || text.contains("Error:", ignoreCase = true)) {
+                    val cleanMsg = extractCleanErrorMessage(text, "Không thể ${if (enable) "kích hoạt" else "vô hiệu hóa"} $packageName")
+                    Result.failure(Exception(cleanMsg))
+                } else if (text.contains("new state:", ignoreCase = true)) {
+                    Result.success(text)
+                } else {
+                    // Xác thực lại trạng thái thực tế
+                    val verifyRes = AdbConnectionManager.executeShell("pm list packages -d $packageName")
+                    val isDisabled = verifyRes.getOrNull()?.contains(packageName) == true
+                    if (enable && !isDisabled) {
+                        Result.success("Đã kích hoạt $packageName")
+                    } else if (!enable && isDisabled) {
+                        Result.success("Đã vô hiệu hóa $packageName")
+                    } else {
+                        Result.failure(Exception("Hệ thống không đổi được trạng thái: $text"))
+                    }
+                }
+            },
+            onFailure = { e -> Result.failure(e) }
+        )
     }
 
     /**
-     * Gỡ cài đặt ứng dụng
+     * Gỡ cài đặt ứng dụng (báo thật 100% dựa trên chữ 'Success' từ ADB)
      */
     suspend fun uninstallApp(packageName: String, isSystemApp: Boolean): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val cmd = if (isSystemApp) {
-                // Với system app, gỡ cho user 0 (debloat an toàn không mất gốc)
-                "pm uninstall -k --user 0 $packageName"
-            } else {
-                "pm uninstall $packageName"
-            }
-            val res = AdbConnectionManager.executeShell(cmd)
-            res
-        } catch (e: Exception) {
-            Result.failure(e)
+        val cmd = if (isSystemApp) {
+            "pm uninstall -k --user 0 $packageName"
+        } else {
+            "pm uninstall $packageName"
         }
+        val res = AdbConnectionManager.executeShellRaw(cmd)
+        res.fold(
+            onSuccess = { response ->
+                val text = response.allOutput.trim()
+                if (text.contains("Success", ignoreCase = true)) {
+                    Result.success("Đã gỡ cài đặt $packageName")
+                } else {
+                    val cleanMsg = extractCleanErrorMessage(text, "Gỡ cài đặt thất bại")
+                    Result.failure(Exception(cleanMsg))
+                }
+            },
+            onFailure = { e -> Result.failure(e) }
+        )
+    }
+
+    /**
+     * Khôi phục ứng dụng hệ thống đã gỡ ở User 0
+     */
+    suspend fun restoreSystemApp(packageName: String): Result<String> = withContext(Dispatchers.IO) {
+        val cmd = "cmd package install-existing $packageName"
+        val res = AdbConnectionManager.executeShellRaw(cmd)
+        res.fold(
+            onSuccess = { response ->
+                val text = response.allOutput.trim()
+                if (text.contains("installed for user", ignoreCase = true) || text.contains("Success", ignoreCase = true)) {
+                    Result.success("Đã khôi phục $packageName")
+                } else {
+                    val cleanMsg = extractCleanErrorMessage(text, "Khôi phục ứng dụng thất bại")
+                    Result.failure(Exception(cleanMsg))
+                }
+            },
+            onFailure = { e -> Result.failure(e) }
+        )
+    }
+
+    private fun extractCleanErrorMessage(rawOutput: String, fallback: String): String {
+        val lines = rawOutput.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val failureLine = lines.firstOrNull { it.startsWith("Failure", ignoreCase = true) }
+        if (failureLine != null) return failureLine
+
+        val exLine = lines.firstOrNull { it.contains("SecurityException", ignoreCase = true) }
+            ?: lines.firstOrNull { it.contains("Exception:", ignoreCase = true) }
+            ?: lines.firstOrNull { it.startsWith("Error:", ignoreCase = true) }
+
+        if (exLine != null) {
+            val msg = exLine.substringAfter(":").trim()
+            return msg.ifEmpty { exLine }
+        }
+        return lines.firstOrNull() ?: fallback
     }
 
     /**

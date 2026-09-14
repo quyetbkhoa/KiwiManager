@@ -1,13 +1,17 @@
 package com.kiwi.manager.data.adb
 
+import com.kiwi.manager.KiwiManagerApp
 import com.kiwi.manager.domain.model.AdbDevice
 import com.kiwi.manager.domain.model.WatchDeviceInfo
+import dadb.AdbKeyPair
+import dadb.AdbShellResponse
 import dadb.Dadb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import java.io.File
 
 sealed class AdbSessionState {
     data object Disconnected : AdbSessionState()
@@ -20,6 +24,7 @@ object AdbConnectionManager {
     private var dadbInstance: Dadb? = null
     private var currentHost: String? = null
     private var currentPort: Int = 5555
+    private var cachedKeyPair: AdbKeyPair? = null
 
     private val _sessionState = MutableStateFlow<AdbSessionState>(AdbSessionState.Disconnected)
     val sessionState: StateFlow<AdbSessionState> = _sessionState.asStateFlow()
@@ -32,6 +37,23 @@ object AdbConnectionManager {
 
     fun getActiveDadb(): Dadb? = dadbInstance
 
+    private fun getOrCreateKeyPair(): AdbKeyPair {
+        cachedKeyPair?.let { return it }
+        val context = KiwiManagerApp.instance
+        val keyDir = File(context.filesDir, "adb")
+        if (!keyDir.exists()) {
+            keyDir.mkdirs()
+        }
+        val privKey = File(keyDir, "adbkey")
+        val pubKey = File(keyDir, "adbkey.pub")
+        if (!privKey.exists() || !pubKey.exists()) {
+            AdbKeyPair.generate(privKey, pubKey)
+        }
+        val keyPair = AdbKeyPair.read(privKey, pubKey)
+        cachedKeyPair = keyPair
+        return keyPair
+    }
+
     suspend fun connect(host: String, port: Int): Result<Dadb> = withContext(Dispatchers.IO) {
         try {
             _sessionState.value = AdbSessionState.Connecting(host, port)
@@ -39,7 +61,8 @@ object AdbConnectionManager {
             // Close any existing connection first
             disconnectInternal()
 
-            val dadb = Dadb.create(host, port)
+            val keyPair = getOrCreateKeyPair()
+            val dadb = Dadb.create(host, port, keyPair)
             dadbInstance = dadb
             currentHost = host
             currentPort = port
@@ -71,6 +94,17 @@ object AdbConnectionManager {
             Result.success(response.output)
         } catch (e: Exception) {
             // Check if connection died
+            checkConnectionAlive()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun executeShellRaw(command: String): Result<AdbShellResponse> = withContext(Dispatchers.IO) {
+        val dadb = dadbInstance ?: return@withContext Result.failure(IllegalStateException("Chưa kết nối ADB tới thiết bị"))
+        try {
+            val response = dadb.shell(command)
+            Result.success(response)
+        } catch (e: Exception) {
             checkConnectionAlive()
             Result.failure(e)
         }

@@ -25,21 +25,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kiwi.manager.ui.theme.KiwiGlow
 import com.kiwi.manager.ui.theme.KiwiNeon
 
 enum class NavTab(val title: String, val icon: ImageVector, val route: String) {
     HOME("Kho App", Icons.Default.GridView, "home"),
-    WATCH_APPS("App Watch", Icons.Default.Watch, "watch_apps"),
-    ADB("Wireless ADB", Icons.Default.Cable, "adb_connect"),
+    WATCH_APPS("Đồng Hồ", Icons.Default.Watch, "watch_apps"),
+    ADB("ADB", Icons.Default.Cable, "adb_connect"),
     SETTINGS("Cài Đặt", Icons.Default.Settings, "settings")
 }
 
@@ -52,16 +51,16 @@ fun GlassBottomNav(
     // Glass specular highlight border gradient
     val dockBorderGradient = Brush.verticalGradient(
         colors = listOf(
-            Color.White.copy(alpha = 0.32f),
-            Color.White.copy(alpha = 0.08f),
-            KiwiNeon.copy(alpha = 0.20f)
+            Color.White.copy(alpha = 0.25f),
+            Color.White.copy(alpha = 0.06f),
+            KiwiNeon.copy(alpha = 0.18f)
         )
     )
 
     // Inner subtle sheen
     val innerSheen = Brush.verticalGradient(
         colors = listOf(
-            Color.White.copy(alpha = 0.06f),
+            Color.White.copy(alpha = 0.05f),
             Color.Transparent
         )
     )
@@ -70,25 +69,24 @@ fun GlassBottomNav(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         // Floating Frosted Glass Dock Container
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(68.dp)
-                .drawBehind {
-                    // Soft neon ambient underglow
-                    drawCircle(
-                        color = KiwiGlow.copy(alpha = 0.25f),
-                        radius = size.width * 0.25f
-                    )
-                }
-                .clip(RoundedCornerShape(32.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
+                .height(64.dp)
+                .shadow(
+                    elevation = 14.dp,
+                    shape = RoundedCornerShape(28.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.6f),
+                    spotColor = KiwiNeon.copy(alpha = 0.12f)
+                )
+                .clip(RoundedCornerShape(28.dp))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
                 .background(innerSheen)
-                .border(1.2.dp, dockBorderGradient, RoundedCornerShape(32.dp))
+                .border(1.dp, dockBorderGradient, RoundedCornerShape(28.dp))
                 .padding(horizontal = 6.dp, vertical = 4.dp)
         ) {
             Row(
@@ -100,7 +98,7 @@ fun GlassBottomNav(
                     val isSelected = currentRoute.startsWith(tab.route)
 
                     val animatedScale by animateFloatAsState(
-                        targetValue = if (isSelected) 1.08f else 1f,
+                        targetValue = if (isSelected) 1.06f else 1f,
                         animationSpec = spring(
                             dampingRatio = Spring.DampingRatioMediumBouncy,
                             stiffness = Spring.StiffnessLow
@@ -121,7 +119,7 @@ fun GlassBottomNav(
                     )
 
                     val pillBackground by animateColorAsState(
-                        targetValue = if (isSelected) KiwiNeon.copy(alpha = 0.16f) else Color.Transparent,
+                        targetValue = if (isSelected) KiwiNeon.copy(alpha = 0.14f) else Color.Transparent,
                         animationSpec = spring(stiffness = Spring.StiffnessLow),
                         label = "pill_bg_${tab.name}"
                     )
@@ -136,7 +134,7 @@ fun GlassBottomNav(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(22.dp))
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -148,10 +146,10 @@ fun GlassBottomNav(
                             verticalArrangement = Arrangement.Center,
                             modifier = Modifier
                                 .scale(animatedScale)
-                                .clip(RoundedCornerShape(18.dp))
+                                .clip(RoundedCornerShape(16.dp))
                                 .background(pillBackground)
-                                .border(1.dp, pillBorderColor, RoundedCornerShape(18.dp))
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .border(1.dp, pillBorderColor, RoundedCornerShape(16.dp))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
@@ -166,7 +164,7 @@ fun GlassBottomNav(
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.TopEnd)
-                                            .offset(x = 3.dp, y = (-2).dp)
+                                            .offset(x = 3.dp, y = (-1).dp)
                                             .size(5.dp)
                                             .clip(CircleShape)
                                             .background(KiwiNeon)
@@ -178,11 +176,10 @@ fun GlassBottomNav(
 
                             Text(
                                 text = tab.title,
-                                fontSize = 10.5.sp,
+                                fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = labelColor,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                maxLines = 1
                             )
                         }
                     }

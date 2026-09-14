@@ -189,6 +189,8 @@ fun WatchAppManagerScreen(
                             WatchAppFilter.USER -> uiState.userAppCount
                             WatchAppFilter.SYSTEM -> uiState.systemAppCount
                             WatchAppFilter.RUNNING -> uiState.runningAppCount
+                            WatchAppFilter.DISABLED -> uiState.disabledAppCount
+                            WatchAppFilter.UNINSTALLED -> uiState.uninstalledAppCount
                             WatchAppFilter.ALL -> uiState.apps.size
                         }
 
@@ -265,6 +267,7 @@ fun WatchAppManagerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
+                        contentPadding = PaddingValues(bottom = 100.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(
@@ -279,6 +282,7 @@ fun WatchAppManagerScreen(
                                 onClearData = { viewModel.clearAppData(app) },
                                 onToggleDisable = { viewModel.toggleAppDisabled(app) },
                                 onUninstall = { viewModel.promptUninstall(app) },
+                                onRestore = { viewModel.restoreSystemApp(app) },
                                 onViewDetails = { viewModel.viewAppDetails(app) }
                             )
                         }
@@ -614,6 +618,7 @@ fun WatchAppCardItem(
     onClearData: () -> Unit,
     onToggleDisable: () -> Unit,
     onUninstall: () -> Unit,
+    onRestore: () -> Unit,
     onViewDetails: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -621,7 +626,11 @@ fun WatchAppCardItem(
     GlassBox(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+        backgroundColor = if (!app.isEnabled || app.isUninstalledUser0) {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.35f)
+        } else {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+        }
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -634,9 +643,13 @@ fun WatchAppCardItem(
                         .size(38.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(
-                            if (app.isRunning) KiwiNeon.copy(alpha = 0.2f)
-                            else if (app.isSystemApp) Color.White.copy(alpha = 0.08f)
-                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            when {
+                                app.isUninstalledUser0 -> Color.Gray.copy(alpha = 0.15f)
+                                !app.isEnabled -> Color(0xFFEF4444).copy(alpha = 0.15f)
+                                app.isRunning -> KiwiNeon.copy(alpha = 0.2f)
+                                app.isSystemApp -> Color.White.copy(alpha = 0.08f)
+                                else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -644,7 +657,12 @@ fun WatchAppCardItem(
                         text = app.appName.firstOrNull()?.uppercase() ?: "A",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (app.isRunning) KiwiNeon else MaterialTheme.colorScheme.onSurface
+                        color = when {
+                            app.isUninstalledUser0 -> Color.Gray
+                            !app.isEnabled -> Color(0xFFEF4444)
+                            app.isRunning -> KiwiNeon
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
                     )
                 }
 
@@ -657,13 +675,13 @@ fun WatchAppCardItem(
                             text = app.appName,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = if (app.isUninstalledUser0) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
 
-                        if (app.isRunning) {
+                        if (app.isRunning && !app.isUninstalledUser0 && app.isEnabled) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Box(
                                 modifier = Modifier
@@ -678,30 +696,55 @@ fun WatchAppCardItem(
                         text = app.packageName,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (app.isUninstalledUser0) 0.5f else 1f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
                 // Badges
-                if (app.isSystemApp) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFF59E0B).copy(alpha = 0.15f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text("Hệ thống", fontSize = 10.sp, color = Color(0xFFF59E0B), fontWeight = FontWeight.Medium)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (app.isUninstalledUser0) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.Gray.copy(alpha = 0.18f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("Đã gỡ (U0)", fontSize = 10.sp, color = Color(0xFF9CA3AF), fontWeight = FontWeight.Medium)
+                        }
+                    } else if (!app.isEnabled) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFEF4444).copy(alpha = 0.18f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("Đã vô hiệu hóa", fontSize = 10.sp, color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                        }
                     }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(KiwiNeon.copy(alpha = 0.15f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text("Người dùng", fontSize = 10.sp, color = KiwiNeon, fontWeight = FontWeight.Medium)
+
+                    if (app.isSystemApp) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFF59E0B).copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("Hệ thống", fontSize = 10.sp, color = Color(0xFFF59E0B), fontWeight = FontWeight.Medium)
+                        }
+                    } else if (!app.isUninstalledUser0) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(KiwiNeon.copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("Người dùng", fontSize = 10.sp, color = KiwiNeon, fontWeight = FontWeight.Medium)
+                        }
                     }
                 }
 
@@ -723,63 +766,74 @@ fun WatchAppCardItem(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Xem chi tiết", fontSize = 13.sp) },
-                            leadingIcon = { Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp)) },
-                            onClick = {
-                                showMenu = false
-                                onViewDetails()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Xóa dữ liệu (Clear Data)", fontSize = 13.sp) },
-                            leadingIcon = { Icon(Icons.Default.CleaningServices, null, modifier = Modifier.size(16.dp)) },
-                            onClick = {
-                                showMenu = false
-                                onClearData()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    if (app.isEnabled) "Vô hiệu hóa app" else "Kích hoạt app",
-                                    fontSize = 13.sp
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    if (app.isEnabled) Icons.Default.Block else Icons.Default.Check,
-                                    null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                onToggleDisable()
-                            }
-                        )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    "Gỡ cài đặt",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                onUninstall()
-                            }
-                        )
+                        if (!app.isUninstalledUser0) {
+                            DropdownMenuItem(
+                                text = { Text("Xem chi tiết", fontSize = 13.sp) },
+                                leadingIcon = { Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp)) },
+                                onClick = {
+                                    showMenu = false
+                                    onViewDetails()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Xóa dữ liệu (Clear Data)", fontSize = 13.sp) },
+                                leadingIcon = { Icon(Icons.Default.CleaningServices, null, modifier = Modifier.size(16.dp)) },
+                                onClick = {
+                                    showMenu = false
+                                    onClearData()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (app.isEnabled) "Vô hiệu hóa app" else "Kích hoạt app",
+                                        fontSize = 13.sp
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        if (app.isEnabled) Icons.Default.Block else Icons.Default.Check,
+                                        null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onToggleDisable()
+                                }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "Gỡ cài đặt",
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onUninstall()
+                                }
+                            )
+                        } else {
+                            DropdownMenuItem(
+                                text = { Text("Khôi phục ứng dụng", fontSize = 13.sp, color = KiwiNeon) },
+                                leadingIcon = { Icon(Icons.Default.Restore, null, tint = KiwiNeon, modifier = Modifier.size(16.dp)) },
+                                onClick = {
+                                    showMenu = false
+                                    onRestore()
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -800,6 +854,45 @@ fun WatchAppCardItem(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Đang xử lý...", fontSize = 12.sp, color = KiwiNeon)
+                } else if (app.isUninstalledUser0) {
+                    FilledTonalButton(
+                        onClick = onRestore,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = KiwiNeon.copy(alpha = 0.2f),
+                            contentColor = KiwiNeon
+                        ),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Restore,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Khôi Phục", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                } else if (!app.isEnabled) {
+                    // App đang bị vô hiệu hóa -> Hiện nút Bật Lại
+                    FilledTonalButton(
+                        onClick = onToggleDisable,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = KiwiNeon.copy(alpha = 0.2f),
+                            contentColor = KiwiNeon
+                        ),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Bật lại App", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 } else {
                     // Nút Tắt App (Buộc dừng)
                     FilledTonalButton(

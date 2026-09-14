@@ -115,6 +115,7 @@ fun AdbConnectScreen(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 100.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // Connected Watch Quick Navigation Banner

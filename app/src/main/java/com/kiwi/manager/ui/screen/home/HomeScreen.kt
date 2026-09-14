@@ -1,11 +1,14 @@
 package com.kiwi.manager.ui.screen.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -20,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kiwi.manager.data.manager.InstallManager
 import com.kiwi.manager.domain.model.InstallStatus
 import com.kiwi.manager.ui.component.AppCard
 import com.kiwi.manager.ui.component.FloatingHeader
@@ -38,6 +42,10 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val installTasks by InstallManager.tasks.collectAsStateWithLifecycle()
+    val activeTasks = remember(installTasks) {
+        installTasks.values.filter { it.isInstalling }
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
@@ -66,6 +74,69 @@ fun HomeScreen(
                 isWatchConnected = uiState.isWatchConnected,
                 onAdbClick = onNavigateToAdbConnect
             )
+
+            // Active Background Installation Banner(s)
+            activeTasks.forEach { task ->
+                val progressPercent = task.downloadProgress?.percent
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(KiwiNeon.copy(alpha = 0.12f))
+                        .border(1.dp, KiwiNeon.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                        .clickable { onNavigateToAppDetail(task.appId) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (progressPercent != null && progressPercent in 1..99) {
+                                CircularProgressIndicator(
+                                    progress = { progressPercent / 100f },
+                                    modifier = Modifier.size(20.dp),
+                                    color = KiwiNeon,
+                                    strokeWidth = 2.5.dp,
+                                    trackColor = KiwiNeon.copy(alpha = 0.2f)
+                                )
+                            } else {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = KiwiNeon,
+                                    strokeWidth = 2.5.dp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Đang cài đặt ${task.appName} (${if (task.isWatch) "Wear OS" else "Mobile"})",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = KiwiNeon
+                                )
+                                Text(
+                                    text = if (progressPercent != null && progressPercent in 1..99) "Đang tải $progressPercent% · Chạm để xem" else "${task.statusMessage} · Chạm để xem",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = KiwiNeon,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
 
             // Offline Banner if applicable
             if (uiState.isOffline) {
