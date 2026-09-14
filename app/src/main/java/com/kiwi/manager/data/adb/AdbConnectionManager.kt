@@ -1,5 +1,6 @@
 package com.kiwi.manager.data.adb
 
+import android.util.Log
 import com.kiwi.manager.KiwiManagerApp
 import com.kiwi.manager.domain.model.AdbDevice
 import com.kiwi.manager.domain.model.WatchDeviceInfo
@@ -21,6 +22,7 @@ sealed class AdbSessionState {
 }
 
 object AdbConnectionManager {
+    private const val TAG = "KiwiAdb"
     private var dadbInstance: Dadb? = null
     private var currentHost: String? = null
     private var currentPort: Int = 5555
@@ -56,6 +58,7 @@ object AdbConnectionManager {
 
     suspend fun connect(host: String, port: Int): Result<Dadb> = withContext(Dispatchers.IO) {
         try {
+            Log.d(TAG, "Bắt đầu kết nối ADB tới $host:$port...")
             _sessionState.value = AdbSessionState.Connecting(host, port)
             
             // Close any existing connection first
@@ -77,11 +80,13 @@ object AdbConnectionManager {
                 lastConnected = System.currentTimeMillis()
             )
             _sessionState.value = AdbSessionState.Connected(device, info)
+            Log.d(TAG, "✓ Đã kết nối ADB thành công tới $host:$port (Model: ${info.model})")
 
             Result.success(dadb)
         } catch (e: Exception) {
             disconnectInternal()
             val errMsg = e.localizedMessage ?: "Không thể kết nối tới $host:$port"
+            Log.e(TAG, "✗ Kết nối ADB thất bại: $errMsg", e)
             _sessionState.value = AdbSessionState.Error(errMsg)
             Result.failure(e)
         }

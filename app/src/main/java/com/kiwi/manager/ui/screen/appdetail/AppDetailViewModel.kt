@@ -10,6 +10,7 @@ import com.kiwi.manager.data.remote.CatalogService
 import com.kiwi.manager.data.remote.GitHubApiService
 import com.kiwi.manager.data.repository.CatalogRepository
 import com.kiwi.manager.data.manager.InstallManager
+import com.kiwi.manager.domain.model.InstallStage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -72,9 +73,15 @@ class AppDetailViewModel(
                 _uiState.update { current ->
                     current.copy(
                         watchInstalling = watchTask?.isInstalling == true,
+                        watchStage = watchTask?.stage ?: InstallStage.IDLE,
                         watchDownloadProgress = watchTask?.downloadProgress,
+                        watchPushProgress = watchTask?.pushProgress,
+                        watchStatusMessage = watchTask?.statusMessage ?: "",
                         phoneInstalling = phoneTask?.isInstalling == true,
+                        phoneStage = phoneTask?.stage ?: InstallStage.IDLE,
                         phoneDownloadProgress = phoneTask?.downloadProgress,
+                        phonePushProgress = phoneTask?.pushProgress,
+                        phoneStatusMessage = phoneTask?.statusMessage ?: "",
                         installLog = if (combinedLogs.isNotEmpty()) combinedLogs else current.installLog
                     )
                 }

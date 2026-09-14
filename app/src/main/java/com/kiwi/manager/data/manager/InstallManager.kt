@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
 import com.kiwi.manager.KiwiManagerApp
@@ -24,6 +25,8 @@ import com.kiwi.manager.data.repository.DownloadRepository
 import com.kiwi.manager.domain.model.AppDisplayInfo
 import com.kiwi.manager.domain.model.DownloadProgress
 import com.kiwi.manager.domain.model.InstallResult
+import com.kiwi.manager.domain.model.InstallStage
+import com.kiwi.manager.domain.model.InstallTask
 import com.kiwi.manager.domain.model.InstalledVersionInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,35 +36,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
-enum class InstallStage {
-    IDLE,
-    FETCHING_INFO,
-    DOWNLOADING,
-    CONNECTING_ADB,
-    PUSHING_TO_WATCH,
-    INSTALLING_ON_WATCH,
-    OPENING_INSTALLER,
-    SUCCESS,
-    ERROR
-}
-
-data class InstallTask(
-    val appId: String,
-    val isWatch: Boolean,
-    val appName: String,
-    val packageName: String,
-    val stage: InstallStage = InstallStage.IDLE,
-    val isInstalling: Boolean = false,
-    val downloadProgress: DownloadProgress? = null,
-    val statusMessage: String = "",
-    val logs: List<String> = emptyList(),
-    val error: String? = null,
-    val isSuccess: Boolean = false
-)
-
 object InstallManager {
+    private const val TAG = "KiwiInstall"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val context: Context get() = KiwiManagerApp.instance
 
@@ -115,6 +94,8 @@ object InstallManager {
     }
 
     private fun addLog(appId: String, isWatch: Boolean, message: String) {
+        val target = if (isWatch) "WATCH" else "PHONE"
+        Log.d(TAG, "[$target] [$appId] $message")
         updateTask(appId, isWatch) { task ->
             task.copy(
                 statusMessage = message,
@@ -275,7 +256,7 @@ object InstallManager {
                     val savedDevices = adbRepository.getSavedDevices()
                     val targetDevice = savedDevices.firstOrNull()
                     if (targetDevice == null) {
-                        val errMsg = "⚠️ Chưa có thiết bị đồng hồ ADB! Vui lòng vào tab 'ADB' để kết nối trước."
+                        val errMsg = "⚠️ Chưa có thiết bị đồng hồ ADB! Vui lòng vào tab 'Đồng Hồ' để kết nối trước."
                         addLog(appId, true, errMsg)
                         updateTask(appId, true) {
                             it.copy(isInstalling = false, stage = InstallStage.ERROR, error = errMsg)
@@ -285,12 +266,14 @@ object InstallManager {
                     }
 
                     addLog(appId, true, "Đang kết nối ADB tới ${targetDevice.host}:${targetDevice.port}...")
-                    val connectResult = adbRepository.connect(targetDevice.host, targetDevice.port)
-                    if (connectResult.isFailure) {
-                        val connErr = connectResult.exceptionOrNull()?.localizedMessage ?: "Lỗi kết nối ADB"
+                    val connectResult = withTimeoutOrNull(20_000L) {
+                        adbRepository.connect(targetDevice.host, targetDevice.port)
+                    }
+                    if (connectResult == null || connectResult.isFailure) {
+                        val connErr = connectResult?.exceptionOrNull()?.localizedMessage ?: "Hết thời gian chờ kết nối (20s)"
                         val errMsg = "✗ Không thể kết nối ADB: $connErr"
                         addLog(appId, true, errMsg)
-                        addLog(appId, true, "👉 Hãy đảm bảo đồng hồ và điện thoại cùng mạng Wi-Fi và đã bật 'Gỡ lỗi qua Wi-Fi'.")
+                        addLog(appId, true, "👉 Hãy đảm bảo đồng hồ đang cắm sạc hoặc màn hình sáng, cùng mạng Wi-Fi.")
                         updateTask(appId, true) {
                             it.copy(isInstalling = false, stage = InstallStage.ERROR, error = errMsg)
                         }
@@ -300,18 +283,40 @@ object InstallManager {
                     dadb = connectResult.getOrThrow()
                 }
 
-                addLog(appId, true, "✓ Đã kết nối ADB! Đang đẩy file APK và cài đặt...")
-                updateTask(appId, true) { it.copy(stage = InstallStage.PUSHING_TO_WATCH) }
-                showNotification(
-                    notificationId = notifId,
-                    title = "⌚ Đang cài đặt: ${app.name}",
-                    content = "Đang đẩy APK và cài đặt lên Wear OS...",
-                    indeterminate = true
-                )
+                addLog(appId, true, "✓ Đã kết nối ADB tới đồng hồ!")
 
-                updateTask(appId, true) { it.copy(stage = InstallStage.INSTALLING_ON_WATCH) }
                 val pkgName = app.watch?.packageName ?: ""
-                val installRes = adbRepository.installApk(dadb, apkFile, pkgName)
+                val installRes = adbRepository.installApk(
+                    dadb = dadb,
+                    apkFile = apkFile,
+                    packageName = pkgName,
+                    onStageChange = { stage, msg ->
+                        updateTask(appId, true) { it.copy(stage = stage) }
+                        addLog(appId, true, msg)
+                        val title = when (stage) {
+                            InstallStage.WAKING_WATCH -> "⌚ Đánh thức: ${app.name}"
+                            InstallStage.PUSHING_TO_WATCH -> "⌚ Đang truyền APK: ${app.name}"
+                            InstallStage.INSTALLING_ON_WATCH -> "⌚ Đang cài đặt: ${app.name}"
+                            else -> "⌚ Wear OS: ${app.name}"
+                        }
+                        showNotification(
+                            notificationId = notifId,
+                            title = title,
+                            content = msg,
+                            indeterminate = (stage != InstallStage.PUSHING_TO_WATCH)
+                        )
+                    },
+                    onPushProgress = { progress ->
+                        updateTask(appId, true) { it.copy(pushProgress = progress) }
+                        showNotification(
+                            notificationId = notifId,
+                            title = "⌚ Đang truyền APK: ${app.name}",
+                            content = "${progress.percent}% (${progress.downloadedMb} / ${progress.totalMb} MB)",
+                            progress = progress.percent,
+                            max = 100
+                        )
+                    }
+                )
 
                 when (installRes) {
                     is InstallResult.Success -> {

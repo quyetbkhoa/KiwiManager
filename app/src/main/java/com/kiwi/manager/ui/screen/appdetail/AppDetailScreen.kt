@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kiwi.manager.domain.model.AppDisplayInfo
 import com.kiwi.manager.domain.model.DownloadProgress
+import com.kiwi.manager.domain.model.InstallStage
 import com.kiwi.manager.domain.model.InstallStatus
 import com.kiwi.manager.ui.component.GlassBox
 import com.kiwi.manager.ui.component.StatusBadge
@@ -214,7 +215,10 @@ fun AppDetailContent(
                     latestVersion = appDisplayInfo.app.phone.versionName,
                     status = appDisplayInfo.phoneStatus,
                     isInstalling = uiState.phoneInstalling,
+                    stage = uiState.phoneStage,
+                    statusMessage = uiState.phoneStatusMessage,
                     downloadProgress = uiState.phoneDownloadProgress,
+                    pushProgress = uiState.phonePushProgress,
                     onActionClick = onInstallPhone
                 )
             }
@@ -230,7 +234,10 @@ fun AppDetailContent(
                     latestVersion = appDisplayInfo.app.watch.versionName,
                     status = appDisplayInfo.watchStatus,
                     isInstalling = uiState.watchInstalling,
+                    stage = uiState.watchStage,
+                    statusMessage = uiState.watchStatusMessage,
                     downloadProgress = uiState.watchDownloadProgress,
+                    pushProgress = uiState.watchPushProgress,
                     onActionClick = onInstallWatch,
                     extraFooter = {
                         Row(
@@ -306,7 +313,10 @@ fun BentoPlatformActionWidget(
     latestVersion: String,
     status: InstallStatus,
     isInstalling: Boolean,
-    downloadProgress: DownloadProgress?,
+    stage: InstallStage = InstallStage.IDLE,
+    statusMessage: String = "",
+    downloadProgress: DownloadProgress? = null,
+    pushProgress: DownloadProgress? = null,
     onActionClick: () -> Unit,
     extraFooter: @Composable (() -> Unit)? = null
 ) {
@@ -362,48 +372,161 @@ fun BentoPlatformActionWidget(
 
             // Action or Progress
             if (isInstalling) {
-                if (downloadProgress != null) {
-                    LinearProgressIndicator(
-                        progress = { downloadProgress.percent / 100f },
-                        color = KiwiNeon,
-                        trackColor = Color.White.copy(alpha = 0.1f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                when (stage) {
+                    InstallStage.DOWNLOADING -> {
+                        if (downloadProgress != null) {
+                            LinearProgressIndicator(
+                                progress = { downloadProgress.percent / 100f },
+                                color = KiwiNeon,
+                                trackColor = Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Đang tải về: ${downloadProgress.percent}%",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = KiwiNeon
+                                )
+                                Text(
+                                    text = "${downloadProgress.downloadedMb} / ${downloadProgress.totalMb} MB",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            LinearProgressIndicator(
+                                color = KiwiNeon,
+                                trackColor = Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Đang tải file APK...",
+                                fontSize = 11.sp,
+                                color = KiwiNeon
+                            )
+                        }
+                    }
+                    InstallStage.CONNECTING_ADB -> {
+                        LinearProgressIndicator(
+                            color = KiwiNeon,
+                            trackColor = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Đang tải: ${downloadProgress.percent}%",
+                            text = "Đang kết nối Wireless ADB tới đồng hồ...",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
                             color = KiwiNeon
                         )
+                    }
+                    InstallStage.WAKING_WATCH -> {
+                        LinearProgressIndicator(
+                            color = KiwiNeon,
+                            trackColor = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "${downloadProgress.downloadedMb} / ${downloadProgress.totalMb} MB",
+                            text = "Đang đánh thức màn hình đồng hồ...",
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = KiwiNeon
                         )
                     }
-                } else {
-                    LinearProgressIndicator(
-                        color = KiwiNeon,
-                        trackColor = Color.White.copy(alpha = 0.1f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Đang chuẩn bị gói cài đặt...",
-                        fontSize = 11.sp,
-                        color = KiwiNeon
-                    )
+                    InstallStage.PUSHING_TO_WATCH -> {
+                        if (pushProgress != null) {
+                            LinearProgressIndicator(
+                                progress = { pushProgress.percent / 100f },
+                                color = KiwiNeon,
+                                trackColor = Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Đang truyền sang đồng hồ: ${pushProgress.percent}%",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = KiwiNeon
+                                )
+                                Text(
+                                    text = "${pushProgress.downloadedMb} / ${pushProgress.totalMb} MB",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            LinearProgressIndicator(
+                                color = KiwiNeon,
+                                trackColor = Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Đang truyền file APK sang đồng hồ...",
+                                fontSize = 11.sp,
+                                color = KiwiNeon
+                            )
+                        }
+                    }
+                    InstallStage.INSTALLING_ON_WATCH -> {
+                        LinearProgressIndicator(
+                            color = KiwiNeon,
+                            trackColor = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Đang thực thi cài đặt trên Wear OS (pm install)...",
+                            fontSize = 11.sp,
+                            color = KiwiNeon
+                        )
+                    }
+                    else -> {
+                        LinearProgressIndicator(
+                            color = KiwiNeon,
+                            trackColor = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = statusMessage.ifEmpty { "Đang chuẩn bị gói cài đặt..." },
+                            fontSize = 11.sp,
+                            color = KiwiNeon
+                        )
+                    }
                 }
             } else {
                 val buttonText = when (status) {

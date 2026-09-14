@@ -1,9 +1,12 @@
 package com.kiwi.manager.data.repository
 
+import android.util.Log
 import com.kiwi.manager.data.adb.AdbConnectionManager
 import com.kiwi.manager.data.local.DataStoreManager
 import com.kiwi.manager.domain.model.AdbDevice
+import com.kiwi.manager.domain.model.DownloadProgress
 import com.kiwi.manager.domain.model.InstallResult
+import com.kiwi.manager.domain.model.InstallStage
 import com.kiwi.manager.domain.model.InstalledVersionInfo
 import com.kiwi.manager.domain.model.WatchAppInfo
 import com.kiwi.manager.domain.model.WatchDeviceInfo
@@ -11,6 +14,10 @@ import com.kiwi.manager.util.Constants
 import dadb.Dadb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import okio.Buffer
+import okio.ForwardingSource
+import okio.source
 import java.io.File
 
 class AdbRepository(private val dataStoreManager: DataStoreManager) {
@@ -348,21 +355,107 @@ class AdbRepository(private val dataStoreManager: DataStoreManager) {
         return candidate.ifBlank { packageName }
     }
 
-    suspend fun installApk(dadb: Dadb, apkFile: File, packageName: String): InstallResult = withContext(Dispatchers.IO) {
+    suspend fun installApk(
+        dadb: Dadb,
+        apkFile: File,
+        packageName: String,
+        onStageChange: ((InstallStage, String) -> Unit)? = null,
+        onPushProgress: ((DownloadProgress) -> Unit)? = null
+    ): InstallResult = withContext(Dispatchers.IO) {
+        val tag = "KiwiInstall"
         try {
-            dadb.push(apkFile, Constants.ADB_TEMP_PATH)
-            val response = dadb.shell("pm install -r -d -t -g ${Constants.ADB_TEMP_PATH}")
-            dadb.shell("rm ${Constants.ADB_TEMP_PATH}")
-
-            val output = response.output
-            when {
-                output.contains("Success") -> InstallResult.Success
-                output.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") ->
-                    InstallResult.Error("Signature conflict. Please uninstall the existing app first.", true)
-                else -> InstallResult.Error(output)
+            // Bước 0: Đánh thức màn hình đồng hồ
+            Log.d(tag, "Đang gửi lệnh đánh thức đồng hồ...")
+            onStageChange?.invoke(InstallStage.WAKING_WATCH, "Đang đánh thức màn hình đồng hồ...")
+            try {
+                withTimeout(8_000L) {
+                    dadb.shell("input keyevent KEYCODE_WAKEUP")
+                    dadb.shell("svc power stayon usb")
+                }
+                Log.d(tag, "✓ Đã gửi lệnh đánh thức đồng hồ")
+            } catch (e: Exception) {
+                Log.w(tag, "Không thể gửi lệnh đánh thức: ${e.message}")
             }
+
+            // Bước 1: Đẩy file APK sang đồng hồ có progress và timeout
+            val totalBytes = apkFile.length()
+            val totalKb = totalBytes / 1024
+            Log.d(tag, "Bắt đầu truyền file APK ($totalKb KB) sang đồng hồ...")
+            onStageChange?.invoke(InstallStage.PUSHING_TO_WATCH, "Đang truyền file APK ($totalKb KB) sang đồng hồ...")
+
+            withTimeout(120_000L) {
+                val fileSource = apkFile.source()
+                var bytesPushed = 0L
+                var lastProgressTime = 0L
+                var lastBytesPushed = 0L
+
+                val progressSource = object : ForwardingSource(fileSource) {
+                    override fun read(sink: Buffer, byteCount: Long): Long {
+                        val bytesRead = super.read(sink, byteCount)
+                        if (bytesRead > 0) {
+                            bytesPushed += bytesRead
+                            val now = System.currentTimeMillis()
+                            if (now - lastProgressTime >= 250 || bytesPushed == totalBytes) {
+                                val timeDiff = (now - lastProgressTime).coerceAtLeast(1)
+                                val bytesDiff = bytesPushed - lastBytesPushed
+                                val speed = (bytesDiff * 1000) / timeDiff
+                                val progress = DownloadProgress(bytesPushed, totalBytes, speed)
+                                onPushProgress?.invoke(progress)
+                                lastProgressTime = now
+                                lastBytesPushed = bytesPushed
+                            }
+                        }
+                        return bytesRead
+                    }
+                }
+
+                progressSource.use { src ->
+                    dadb.push(src, Constants.ADB_TEMP_PATH, 420, apkFile.lastModified())
+                }
+            }
+            Log.d(tag, "✓ Đã truyền xong file APK sang đồng hồ!")
+
+            // Bước 2: Thực thi pm install trên Wear OS có timeout
+            Log.d(tag, "Bắt đầu thực thi pm install trên Wear OS...")
+            onStageChange?.invoke(InstallStage.INSTALLING_ON_WATCH, "Đang thực thi cài đặt trên Wear OS (pm install)...")
+
+            val response = withTimeout(90_000L) {
+                dadb.shell("pm install -r -d -t -g ${Constants.ADB_TEMP_PATH}")
+            }
+
+            // Dọn dẹp file tạm trên đồng hồ
+            try {
+                dadb.shell("rm -f ${Constants.ADB_TEMP_PATH}")
+            } catch (_: Exception) {}
+
+            val output = response.output.trim()
+            Log.d(tag, "pm install phản hồi: $output")
+
+            when {
+                output.contains("Success") -> {
+                    Log.d(tag, "✓ Cài đặt thành công trên Wear OS!")
+                    InstallResult.Success
+                }
+                output.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") -> {
+                    val msg = "Xung đột chữ ký (Signature conflict). Vui lòng gỡ phiên bản hiện tại trên đồng hồ trước khi cài bản này."
+                    Log.e(tag, "✗ Lỗi chữ ký: $msg")
+                    InstallResult.Error(msg, true)
+                }
+                else -> {
+                    val cleanMsg = extractCleanErrorMessage(output, "Cài đặt thất bại: $output")
+                    Log.e(tag, "✗ Lỗi cài đặt: $cleanMsg")
+                    InstallResult.Error(cleanMsg)
+                }
+            }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            Log.e(tag, "⏱️ Timeout cài đặt APK trên đồng hồ!", e)
+            try {
+                AdbConnectionManager.disconnect()
+            } catch (_: Exception) {}
+            InstallResult.Error("⏱️ Hết thời gian chờ (Timeout)! Đồng hồ có thể đã tắt màn hình hoặc ngắt Wi-Fi. Hãy cắm sạc/giữ sáng màn hình đồng hồ và thử lại.")
         } catch (e: Exception) {
-            InstallResult.Error(e.message ?: "Unknown error")
+            Log.e(tag, "✗ Ngoại lệ khi cài APK: ${e.message}", e)
+            InstallResult.Error(e.localizedMessage ?: "Lỗi không xác định khi cài đặt ADB")
         }
     }
 
