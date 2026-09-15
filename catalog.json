@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "repositoryName": "KiwiManager Catalog",
-  "updatedAt": "2026-09-15T15:00:00Z",
+  "updatedAt": "2026-09-16T00:00:00Z",
   "apps": [
     {
       "id": "kiwi_manager",
@@ -14,9 +14,9 @@
       "phone": {
         "packageName": "com.kiwi.manager",
         "assetPattern": "kiwimanager",
-        "versionName": "1.4.0",
-        "versionCode": 10400,
-        "downloadUrl": "https://github.com/quyetbkhoa/KiwiManager/releases/download/v1.4.0/KiwiManager-v1.4.0.apk",
+        "versionName": "1.4.1",
+        "versionCode": 10401,
+        "downloadUrl": "https://github.com/quyetbkhoa/KiwiManager/releases/download/v1.4.1/KiwiManager-v1.4.1.apk",
         "minSdk": 26
       }
     },
@@ -31,17 +31,17 @@
       "phone": {
         "packageName": "com.oppowatch.gemini",
         "assetPattern": "phone",
-        "versionName": "1.4.0",
-        "versionCode": 10400,
-        "downloadUrl": "https://github.com/quyetbkhoa/GeminiForWearOS2/releases/download/v1.4.0/Gemini_Phone_Companion.apk",
+        "versionName": "1.4.1",
+        "versionCode": 10401,
+        "downloadUrl": "https://github.com/quyetbkhoa/GeminiForWearOS2/releases/download/v1.4.1/Gemini_Phone_Companion.apk",
         "minSdk": 26
       },
       "watch": {
         "packageName": "com.oppowatch.gemini",
         "assetPattern": "watch",
-        "versionName": "1.4.0",
-        "versionCode": 10400,
-        "downloadUrl": "https://github.com/quyetbkhoa/GeminiForWearOS2/releases/download/v1.4.0/Gemini_Watch_App.apk",
+        "versionName": "1.4.1",
+        "versionCode": 10401,
+        "downloadUrl": "https://github.com/quyetbkhoa/GeminiForWearOS2/releases/download/v1.4.1/Gemini_Watch_App.apk",
         "minSdk": 28
       }
     },

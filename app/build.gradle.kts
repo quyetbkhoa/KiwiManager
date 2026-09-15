@@ -4,6 +4,29 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+val signingEnvironment = mapOf(
+    "KEYSTORE_FILE" to providers.environmentVariable("KEYSTORE_FILE").orNull,
+    "KEYSTORE_PASSWORD" to providers.environmentVariable("KEYSTORE_PASSWORD").orNull,
+    "KEY_ALIAS" to providers.environmentVariable("KEY_ALIAS").orNull,
+    "KEY_PASSWORD" to providers.environmentVariable("KEY_PASSWORD").orNull,
+)
+val releaseBuildRequested = gradle.startParameter.taskNames.any { requestedTask ->
+    val taskName = requestedTask.substringAfterLast(':')
+    taskName.equals("assemble", ignoreCase = true) ||
+        taskName.equals("build", ignoreCase = true) ||
+        taskName.contains("release", ignoreCase = true)
+}
+val missingSigningVariables = signingEnvironment
+    .filterValues { it.isNullOrBlank() }
+    .keys
+val hasSigningEnvironment = missingSigningVariables.isEmpty()
+
+if (releaseBuildRequested && !hasSigningEnvironment) {
+    throw GradleException(
+        "Missing signing environment variable(s): ${missingSigningVariables.joinToString()}",
+    )
+}
+
 android {
     namespace = "com.kiwi.manager"
     compileSdk = 36
@@ -12,9 +35,9 @@ android {
         applicationId = "com.kiwi.manager"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10400
-        versionName = "1.4.0"
-        
+        versionCode = 10401
+        versionName = "1.4.1"
+
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -22,10 +45,12 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("${rootDir}/keystore/kiwi.jks")
-            storePassword = "kiwiwearos"
-            keyAlias = "kiwikey"
-            keyPassword = "kiwiwearos"
+            if (hasSigningEnvironment) {
+                storeFile = rootProject.file(signingEnvironment.getValue("KEYSTORE_FILE")!!)
+                storePassword = signingEnvironment.getValue("KEYSTORE_PASSWORD")
+                keyAlias = signingEnvironment.getValue("KEY_ALIAS")
+                keyPassword = signingEnvironment.getValue("KEY_PASSWORD")
+            }
         }
     }
 
@@ -34,12 +59,14 @@ android {
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
             signingConfig = signingConfigs.getByName("release")
         }
         debug {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasSigningEnvironment) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -51,7 +78,7 @@ android {
     buildFeatures {
         compose = true
     }
-    
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -71,15 +98,15 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation("androidx.compose.material:material-icons-extended")
-    
+
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)
-    
+
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.dadb)
-    
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
