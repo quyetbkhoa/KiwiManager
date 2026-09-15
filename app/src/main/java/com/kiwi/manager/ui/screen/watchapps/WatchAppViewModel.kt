@@ -82,10 +82,12 @@ class WatchAppViewModel(application: Application) : AndroidViewModel(application
                     )
                 }
             }.onFailure { error ->
+                val errorText = error.localizedMessage ?: "Lỗi tải danh sách app trên đồng hồ"
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = error.localizedMessage ?: "Lỗi tải danh sách app trên đồng hồ"
+                        errorMessage = errorText,
+                        actionFeedbackMessage = if (it.apps.isNotEmpty()) "✗ $errorText" else it.actionFeedbackMessage
                     )
                 }
             }

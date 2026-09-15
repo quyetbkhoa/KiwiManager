@@ -5,6 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kiwi.manager.data.adb.AdbConnectionManager
 import com.kiwi.manager.data.adb.AdbSessionState
+import com.kiwi.manager.data.adb.AdbTransportType
+import com.kiwi.manager.data.adb.BluetoothBridgeMode
+import com.kiwi.manager.data.adb.BluetoothDeviceInfo
 import com.kiwi.manager.data.local.DataStoreManager
 import com.kiwi.manager.data.repository.AdbRepository
 import com.kiwi.manager.domain.model.AdbDevice
@@ -25,6 +28,7 @@ class AdbConnectViewModel(application: Application) : AndroidViewModel(applicati
     init {
         loadSavedDevices()
         observeConnectionState()
+        refreshPairedDevices()
     }
 
     private fun observeConnectionState() {
@@ -36,6 +40,7 @@ class AdbConnectViewModel(application: Application) : AndroidViewModel(applicati
                             it.copy(
                                 isConnected = true,
                                 isConnecting = false,
+                                activeTransport = state.transport,
                                 connectionError = null,
                                 deviceInfo = state.info
                             )
@@ -45,6 +50,7 @@ class AdbConnectViewModel(application: Application) : AndroidViewModel(applicati
                         _uiState.update {
                             it.copy(
                                 isConnecting = true,
+                                activeTransport = state.transport,
                                 connectionError = null
                             )
                         }
@@ -77,15 +83,47 @@ class AdbConnectViewModel(application: Application) : AndroidViewModel(applicati
             val saved = adbRepository.getSavedDevices()
             _uiState.update { it.copy(savedDevices = saved) }
             if (saved.isNotEmpty() && _uiState.value.ipAddress.isEmpty()) {
-                val latest = saved.maxByOrNull { it.lastConnected } ?: saved.first()
-                _uiState.update {
-                    it.copy(
-                        ipAddress = latest.host,
-                        port = latest.port.toString()
-                    )
+                val latestWifi = saved.filter { !it.host.contains(":") || it.port > 0 }
+                    .maxByOrNull { it.lastConnected }
+                if (latestWifi != null) {
+                    _uiState.update {
+                        it.copy(
+                            ipAddress = latestWifi.host,
+                            port = latestWifi.port.toString()
+                        )
+                    }
                 }
             }
         }
+    }
+
+    fun selectTab(tab: AdbTabMode) {
+        _uiState.update { it.copy(selectedTab = tab, connectionError = null) }
+        if (tab == AdbTabMode.BLUETOOTH) {
+            refreshPairedDevices()
+        }
+    }
+
+    fun refreshPairedDevices() {
+        val paired = adbRepository.getPairedBluetoothDevices()
+        _uiState.update { current ->
+            val selected = current.selectedBluetoothDevice?.let { sel ->
+                paired.find { it.address == sel.address }
+            } ?: paired.firstOrNull { it.isLikelyWatch } ?: paired.firstOrNull()
+
+            current.copy(
+                pairedBluetoothDevices = paired,
+                selectedBluetoothDevice = selected
+            )
+        }
+    }
+
+    fun selectBluetoothDevice(device: BluetoothDeviceInfo) {
+        _uiState.update { it.copy(selectedBluetoothDevice = device, connectionError = null) }
+    }
+
+    fun updateBluetoothBridgeMode(mode: BluetoothBridgeMode) {
+        _uiState.update { it.copy(bluetoothBridgeMode = mode) }
     }
 
     fun updateIp(ip: String) {
@@ -97,6 +135,14 @@ class AdbConnectViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun connect() {
+        if (_uiState.value.selectedTab == AdbTabMode.BLUETOOTH) {
+            connectBluetooth()
+        } else {
+            connectWifi()
+        }
+    }
+
+    fun connectWifi() {
         viewModelScope.launch {
             val ip = _uiState.value.ipAddress.trim()
             val portStr = _uiState.value.port.trim()
@@ -113,13 +159,7 @@ class AdbConnectViewModel(application: Application) : AndroidViewModel(applicati
             val result = adbRepository.connect(ip, port)
             result.onSuccess {
                 addLog("✓ Kết nối thành công tới $ip:$port!")
-                val info = adbRepository.getWatchDeviceInfo()
-                if (info != null) {
-                    addLog("Thiết bị: ${info.manufacturer} ${info.model} (Android ${info.androidVersion})")
-                    if (info.batteryLevel != null) {
-                        addLog("Pin: ${info.batteryLevel}%${if (info.isCharging) " (Đang sạc)" else ""}")
-                    }
-                }
+                logDeviceInfo()
                 loadSavedDevices()
             }.onFailure { e ->
                 val errorMsg = e.localizedMessage ?: "Kết nối thất bại"
@@ -129,22 +169,72 @@ class AdbConnectViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun connectBluetooth() {
+        viewModelScope.launch {
+            val device = _uiState.value.selectedBluetoothDevice
+            if (device == null) {
+                _uiState.update { it.copy(connectionError = "Vui lòng chọn thiết bị Bluetooth đồng hồ!") }
+                return@launch
+            }
+
+            val mode = _uiState.value.bluetoothBridgeMode
+            val modeStr = if (mode == BluetoothBridgeMode.DIRECT_RFCOMM) "Direct RFCOMM Bridge" else "Wear OS adb-hub"
+
+            _uiState.update { it.copy(isConnecting = true, connectionError = null) }
+            addLog("Đang thiết lập kết nối Bluetooth ADB ($modeStr)...")
+            addLog("Mục tiêu: ${device.name} [${device.address}]")
+
+            val result = adbRepository.connectBluetooth(device.address, device.name, mode)
+            result.onSuccess {
+                addLog("✓ Kết nối Bluetooth ADB thành công tới ${device.name}!")
+                logDeviceInfo()
+                loadSavedDevices()
+            }.onFailure { e ->
+                val errorMsg = e.localizedMessage ?: "Kết nối Bluetooth thất bại"
+                addLog("✗ Lỗi kết nối Bluetooth: $errorMsg")
+                if (mode == BluetoothBridgeMode.DIRECT_RFCOMM) {
+                    addLog("👉 Hãy đảm bảo: Bluetooth trên cả 2 máy đã bật & ghép đôi, app Gemini Companion trên đồng hồ đang chạy.")
+                } else {
+                    addLog("👉 Hãy đảm bảo: Ứng dụng Wear OS companion trên điện thoại đã bật 'Gỡ lỗi qua Bluetooth'.")
+                }
+            }
+        }
+    }
+
+    private suspend fun logDeviceInfo() {
+        val info = adbRepository.getWatchDeviceInfo()
+        if (info != null) {
+            addLog("Thiết bị: ${info.manufacturer} ${info.model} (Android ${info.androidVersion})")
+            if (info.batteryLevel != null) {
+                addLog("Pin: ${info.batteryLevel}%${if (info.isCharging) " (Đang sạc)" else ""}")
+            }
+        }
+    }
+
     fun disconnect() {
         viewModelScope.launch {
-            val ip = _uiState.value.ipAddress
-            val port = _uiState.value.port
-            addLog("Đang ngắt kết nối $ip:$port...")
+            addLog("Đang ngắt kết nối ADB...")
             adbRepository.disconnect()
             addLog("✓ Đã ngắt kết nối ADB.")
         }
     }
 
     fun selectSavedDevice(device: AdbDevice) {
-        _uiState.update {
-            it.copy(
-                ipAddress = device.host,
-                port = device.port.toString()
-            )
+        if (device.port == 0 || device.host.contains(":")) {
+            // Bluetooth device
+            val found = _uiState.value.pairedBluetoothDevices.find { it.address.equals(device.host, ignoreCase = true) }
+            if (found != null) {
+                _uiState.update { it.copy(selectedTab = AdbTabMode.BLUETOOTH, selectedBluetoothDevice = found) }
+            }
+        } else {
+            // Wi-Fi device
+            _uiState.update {
+                it.copy(
+                    selectedTab = AdbTabMode.WIFI,
+                    ipAddress = device.host,
+                    port = device.port.toString()
+                )
+            }
         }
     }
 

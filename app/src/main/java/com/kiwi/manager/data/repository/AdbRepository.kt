@@ -31,6 +31,23 @@ class AdbRepository(private val dataStoreManager: DataStoreManager) {
         result
     }
 
+    suspend fun connectBluetooth(
+        deviceAddress: String,
+        deviceName: String = "",
+        mode: com.kiwi.manager.data.adb.BluetoothBridgeMode = com.kiwi.manager.data.adb.BluetoothBridgeMode.DIRECT_RFCOMM
+    ): Result<Dadb> = withContext(Dispatchers.IO) {
+        val result = AdbConnectionManager.connectBluetooth(deviceAddress, deviceName, mode)
+        result.onSuccess {
+            val device = AdbDevice(deviceAddress, 0, isConnected = true, lastConnected = System.currentTimeMillis())
+            saveDevice(device)
+        }
+        result
+    }
+
+    fun getPairedBluetoothDevices(): List<com.kiwi.manager.data.adb.BluetoothDeviceInfo> {
+        return com.kiwi.manager.data.adb.BluetoothAdbBridge.getPairedDevices()
+    }
+
     suspend fun executeShell(command: String): Result<String> = AdbConnectionManager.executeShell(command)
 
     fun isConnected(): Boolean = AdbConnectionManager.isConnected
@@ -53,36 +70,69 @@ class AdbRepository(private val dataStoreManager: DataStoreManager) {
                 ?: return@withContext Result.failure(IllegalStateException("Chưa kết nối ADB tới đồng hồ"))
 
             // 1. Lấy danh sách User Apps (-3)
-            val userOutput = dadb.shell("pm list packages -3 -f").output
+            val userOutput = try {
+                dadb.shell("pm list packages -3 -f").output
+            } catch (e: Exception) {
+                val msg = e.message ?: ""
+                if (msg.contains("unauthorized", ignoreCase = true) || msg.contains("auth", ignoreCase = true)) {
+                    return@withContext Result.failure(Exception("Đồng hồ chưa được ủy quyền ADB! Hãy mở sáng màn hình đồng hồ và chọn 'Luôn cho phép'."))
+                }
+                throw e
+            }
             val userMap = parsePackageList(userOutput)
 
             // 2. Lấy danh sách System Apps (-s)
-            val sysOutput = dadb.shell("pm list packages -s -f").output
+            val sysOutput = try {
+                dadb.shell("pm list packages -s -f").output
+            } catch (e: Exception) {
+                Log.w("AdbRepository", "Không thể lấy system apps: ${e.message}")
+                ""
+            }
             val sysMap = parsePackageList(sysOutput)
 
+            // Nếu cả userMap và sysMap đều rỗng, kiểm tra xem kết nối shell còn sống không
+            if (userMap.isEmpty() && sysMap.isEmpty()) {
+                val ping = try { dadb.shell("echo ok").output.trim() } catch (e: Exception) { "" }
+                if (ping != "ok") {
+                    return@withContext Result.failure(Exception("Không nhận được phản hồi từ đồng hồ. Vui lòng kết nối lại Bluetooth ADB."))
+                }
+            }
+
             // 3. Lấy danh sách Disabled Apps (-d)
-            val disabledOutput = dadb.shell("pm list packages -d").output
+            val disabledOutput = try {
+                dadb.shell("pm list packages -d").output
+            } catch (e: Exception) {
+                ""
+            }
             val disabledSet = disabledOutput.lines()
                 .map { it.trim().removePrefix("package:") }
                 .filter { it.isNotEmpty() }
                 .toSet()
 
             // 4. Lấy danh sách Uninstalled Apps (-u) để phát hiện system apps đã bị debloat cho User 0
-            val uninstalledOutput = dadb.shell("pm list packages -u").output
+            val uninstalledOutput = try {
+                dadb.shell("pm list packages -u").output
+            } catch (e: Exception) {
+                ""
+            }
             val allPackagesSet = uninstalledOutput.lines()
                 .map { it.trim().removePrefix("package:") }
                 .filter { it.isNotEmpty() }
                 .toSet()
 
             // 5. Lấy danh sách tiến trình đang chạy (ps -A)
-            val psOutput = dadb.shell("ps -A").output
             val runningSet = mutableSetOf<String>()
-            psOutput.lines().forEach { line ->
-                val parts = line.trim().split("\\s+".toRegex())
-                if (parts.isNotEmpty()) {
-                    val processName = parts.last()
-                    runningSet.add(processName)
+            try {
+                val psOutput = dadb.shell("ps -A").output
+                psOutput.lines().forEach { line ->
+                    val parts = line.trim().split("\\s+".toRegex())
+                    if (parts.isNotEmpty()) {
+                        val processName = parts.last()
+                        runningSet.add(processName)
+                    }
                 }
+            } catch (e: Exception) {
+                Log.w("AdbRepository", "Không thể lấy ps -A: ${e.message}")
             }
 
             // Tổng hợp danh sách ứng dụng
