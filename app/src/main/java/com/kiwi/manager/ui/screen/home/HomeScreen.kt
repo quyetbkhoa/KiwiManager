@@ -32,6 +32,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kiwi.manager.ui.theme.KiwiNeon
+import com.kiwi.manager.ui.theme.StatusUpdate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,8 +84,8 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 4.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(KiwiNeon.copy(alpha = 0.12f))
-                        .border(1.dp, KiwiNeon.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
                         .clickable { onNavigateToAppDetail(task.appId) }
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
@@ -118,7 +119,7 @@ fun HomeScreen(
                                     text = "Đang cài đặt ${task.appName} (${if (task.isWatch) "Wear OS" else "Mobile"})",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = KiwiNeon
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Text(
                                     text = if (progressPercent != null && progressPercent in 1..99) "Đang tải $progressPercent% · Chạm để xem" else "${task.statusMessage} · Chạm để xem",
@@ -145,22 +146,23 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 4.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFFE65100).copy(alpha = 0.15f))
+                        .background(StatusUpdate.copy(alpha = 0.14f))
                         .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.WarningAmber,
                             contentDescription = null,
-                            tint = Color(0xFFFFB74D),
+                            tint = StatusUpdate,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Chế độ Ngoại tuyến · Đang dùng dữ liệu bộ nhớ đệm",
-                            fontSize = 12.sp,
-                            color = Color(0xFFFFB74D),
-                            fontWeight = FontWeight.Medium
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -244,24 +246,22 @@ fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "KHO ỨNG DỤNG (${uiState.apps.size})",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    letterSpacing = 1.sp
+                                    text = "Kho ứng dụng · ${uiState.apps.size}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 if (updatesCount > 0) {
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(10.dp))
-                                            .background(Color(0xFFFF9100).copy(alpha = 0.18f))
-                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                            .background(StatusUpdate.copy(alpha = 0.16f))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
                                             text = "$updatesCount bản cập nhật",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFFB74D)
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = StatusUpdate
                                         )
                                     }
                                 }

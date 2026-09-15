@@ -1,39 +1,43 @@
 package com.kiwi.manager.ui.component
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material3.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kiwi.manager.domain.model.AppDisplayInfo
-import com.kiwi.manager.ui.theme.GlassBorderGradient
-import com.kiwi.manager.ui.theme.KiwiNeon
-
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
+import com.kiwi.manager.domain.model.InstallStatus
+import com.kiwi.manager.ui.theme.KiwiSize
+import com.kiwi.manager.ui.theme.KiwiSpacing
 
 @Composable
 fun AppCard(
@@ -41,93 +45,68 @@ fun AppCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
-        label = "card_scale"
-    )
+    val (appSymbol, iconGradient) = appVisual(appDisplayInfo.app.id)
 
-    // Vibrant icons based on app id
-    val (appEmoji, iconGradient) = when (appDisplayInfo.app.id) {
-        "kiwi_manager" -> "🥝" to Brush.linearGradient(listOf(Color(0xFF76FF03), Color(0xFF388E3C)))
-        "gemini_wear" -> "🤖" to Brush.linearGradient(listOf(Color(0xFF42A5F5), Color(0xFF7E57C2)))
-        "open_navigation" -> "🗺️" to Brush.linearGradient(listOf(Color(0xFFFFB74D), Color(0xFFF4511E)))
-        "custom_vibration" -> "📳" to Brush.linearGradient(listOf(Color(0xFFEC407A), Color(0xFFAB47BC)))
-        else -> "📦" to Brush.linearGradient(listOf(Color(0xFF78909C), Color(0xFF37474F)))
-    }
-
-    Box(
+    Card(
         modifier = modifier
             .fillMaxWidth()
-            .scale(scale)
-            .clip(RoundedCornerShape(26.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
-            .border(1.dp, GlassBorderGradient, RoundedCornerShape(26.dp))
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-            .padding(18.dp)
+            .semantics { role = Role.Button }
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Header Row: Avatar, Title & Tag, Arrow
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(KiwiSpacing.md)
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // App Avatar with Gradient Glow
                 Box(
                     modifier = Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(iconGradient)
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(18.dp)),
+                        .size(KiwiSize.appIcon)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(iconGradient),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = appEmoji,
-                        fontSize = 26.sp
-                    )
+                    Text(text = appSymbol, style = MaterialTheme.typography.headlineSmall)
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(Modifier.width(KiwiSpacing.sm))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = appDisplayInfo.app.name,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         if (appDisplayInfo.app.isManager) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(KiwiNeon.copy(alpha = 0.18f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            Spacer(Modifier.width(KiwiSpacing.xs))
+                            Surface(
+                                shape = MaterialTheme.shapes.extraSmall,
+                                color = MaterialTheme.colorScheme.primaryContainer
                             ) {
                                 Text(
-                                    text = "CORE",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = KiwiNeon
+                                    text = "TRUNG TÂM",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
                         }
                     }
-
+                    Spacer(Modifier.height(KiwiSpacing.xxs))
                     Text(
                         text = appDisplayInfo.app.description,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                        maxLines = 1,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -135,92 +114,94 @@ fun AppCard(
                 Icon(
                     imageVector = Icons.Default.ChevronRight,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.size(20.dp)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(Modifier.height(KiwiSpacing.md))
 
-            // Bento Sub-Widgets Grid (Phone & Watch)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Phone Widget
-                if (appDisplayInfo.app.phone != null) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
-                            .padding(12.dp)
-                    ) {
-                        Column {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "📱 Mobile",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = appDisplayInfo.phoneInstalled?.versionName ?: "v${appDisplayInfo.app.phone.versionName}",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            StatusBadge(
-                                status = appDisplayInfo.phoneStatus,
-                                latestVersion = appDisplayInfo.app.phone.versionName
-                            )
-                        }
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                if (maxWidth < 340.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(KiwiSpacing.xs)) {
+                        PlatformPanels(appDisplayInfo, Modifier.fillMaxWidth())
                     }
-                }
-
-                // Watch Widget
-                if (appDisplayInfo.app.watch != null) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
-                            .padding(12.dp)
-                    ) {
-                        Column {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "⌚ Wear OS",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = appDisplayInfo.watchInstalled?.versionName ?: "v${appDisplayInfo.app.watch.versionName}",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            StatusBadge(
-                                status = appDisplayInfo.watchStatus,
-                                latestVersion = appDisplayInfo.app.watch.versionName
-                            )
-                        }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(KiwiSpacing.xs)) {
+                        PlatformPanels(appDisplayInfo, Modifier.weight(1f))
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun PlatformPanels(
+    appDisplayInfo: AppDisplayInfo,
+    panelModifier: Modifier
+) {
+    appDisplayInfo.app.phone?.let { phone ->
+        PlatformStatusPanel(
+            label = "Điện thoại",
+            symbol = "📱",
+            version = appDisplayInfo.phoneInstalled?.versionName ?: "v${phone.versionName}",
+            status = appDisplayInfo.phoneStatus,
+            latestVersion = phone.versionName,
+            modifier = panelModifier
+        )
+    }
+    appDisplayInfo.app.watch?.let { watch ->
+        PlatformStatusPanel(
+            label = "Wear OS",
+            symbol = "⌚",
+            version = appDisplayInfo.watchInstalled?.versionName ?: "v${watch.versionName}",
+            status = appDisplayInfo.watchStatus,
+            latestVersion = watch.versionName,
+            modifier = panelModifier
+        )
+    }
+}
+
+@Composable
+private fun PlatformStatusPanel(
+    label: String,
+    symbol: String,
+    version: String,
+    status: InstallStatus,
+    latestVersion: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
+            .padding(KiwiSpacing.sm)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "$symbol $label",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = version,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
+        Spacer(Modifier.height(KiwiSpacing.xs))
+        StatusBadge(status = status, latestVersion = latestVersion)
+    }
+}
+
+private fun appVisual(id: String): Pair<String, Brush> = when (id) {
+    "kiwi_manager" -> "🥝" to Brush.linearGradient(listOf(Color(0xFF9BEF67), Color(0xFF3C8C35)))
+    "gemini_wear" -> "✦" to Brush.linearGradient(listOf(Color(0xFF71C4FF), Color(0xFF7867D9)))
+    "open_navigation" -> "↗" to Brush.linearGradient(listOf(Color(0xFFFFD166), Color(0xFFE76F51)))
+    "custom_vibration" -> "≋" to Brush.linearGradient(listOf(Color(0xFFFF8FAB), Color(0xFF9B5DE5)))
+    else -> "▦" to Brush.linearGradient(listOf(Color(0xFF90A4AE), Color(0xFF455A64)))
 }

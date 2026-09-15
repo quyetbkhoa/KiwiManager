@@ -69,7 +69,7 @@ fun WatchAppManagerScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.08f))
                         .clickable { onNavigateBack() },
@@ -201,7 +201,7 @@ fun WatchAppManagerScreen(
                                 Text(
                                     text = "${filter.label} ($count)",
                                     fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    fontWeight = FontWeight.Medium
                                 )
                             },
                             shape = RoundedCornerShape(20.dp),
@@ -799,7 +799,7 @@ fun WatchAppCardItem(
                 Box {
                     IconButton(
                         onClick = { showMenu = true },
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.MoreVert,
@@ -910,7 +910,7 @@ fun WatchAppCardItem(
                             containerColor = KiwiNeon.copy(alpha = 0.2f),
                             contentColor = KiwiNeon
                         ),
-                        modifier = Modifier.height(32.dp)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Restore,
@@ -930,7 +930,7 @@ fun WatchAppCardItem(
                             containerColor = KiwiNeon.copy(alpha = 0.2f),
                             contentColor = KiwiNeon
                         ),
-                        modifier = Modifier.height(32.dp)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
@@ -950,7 +950,7 @@ fun WatchAppCardItem(
                             containerColor = Color(0xFFEF4444).copy(alpha = 0.15f),
                             contentColor = Color(0xFFEF4444)
                         ),
-                        modifier = Modifier.height(32.dp)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.StopCircle,
@@ -972,7 +972,7 @@ fun WatchAppCardItem(
                             containerColor = KiwiNeon.copy(alpha = 0.18f),
                             contentColor = KiwiNeon
                         ),
-                        modifier = Modifier.height(32.dp)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,

@@ -1,30 +1,36 @@
 package com.kiwi.manager.ui.component
 
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.kiwi.manager.ui.theme.GlassBorderGradient
-import com.kiwi.manager.ui.theme.KiwiNeon
+import com.kiwi.manager.ui.theme.KiwiSize
+import com.kiwi.manager.ui.theme.KiwiSpacing
 
 @Composable
 fun FloatingHeader(
@@ -34,126 +40,104 @@ fun FloatingHeader(
     isWatchConnected: Boolean = false,
     onAdbClick: () -> Unit = {}
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val mascotScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "mascot_pulse"
-    )
-
-    val refreshRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = LinearEasing)
-        ),
-        label = "refresh_rotation"
-    )
-
-    Box(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(horizontal = KiwiSpacing.md, vertical = KiwiSpacing.xs),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+        shadowElevation = 1.dp,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant
+        )
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
-                .border(1.dp, GlassBorderGradient, RoundedCornerShape(28.dp))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+        Row(
+            modifier = Modifier.padding(start = KiwiSpacing.sm, end = KiwiSpacing.xs, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
             ) {
-                // Left: Mascot + App Brand
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .scale(mascotScale)
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.1f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "🥝", fontSize = 22.sp)
-                    }
+                Text(text = "🥝", style = MaterialTheme.typography.titleLarge)
+            }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+            Spacer(Modifier.width(KiwiSpacing.sm))
 
-                    Column {
-                        Text(
-                            text = "Kiwi Manager",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Wear OS Ecosystem",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = KiwiNeon
-                        )
-                    }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Kiwi Manager",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Quản lý hệ sinh thái Wear OS",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Surface(
+                modifier = Modifier
+                    .semantics { role = Role.Button }
+                    .clickable(onClick = onAdbClick),
+                shape = MaterialTheme.shapes.small,
+                color = if (isWatchConnected) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
                 }
-
-                // Right: Actions (ADB Status Pill + Refresh)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // ADB Status Pill
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(
-                                if (isWatchConnected) KiwiNeon.copy(alpha = 0.15f)
-                                else Color.White.copy(alpha = 0.08f)
-                            )
-                            .clickable { onAdbClick() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isWatchConnected) KiwiNeon else Color(0xFF90A4AE))
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (isWatchConnected) "ADB Sẵn sàng" else "ADB Chưa nối",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (isWatchConnected) KiwiNeon else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Refresh Button
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
+                            .size(8.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .clickable(enabled = !isRefreshing) { onRefresh() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Làm mới",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier
-                                .size(18.dp)
-                                .then(if (isRefreshing) Modifier.rotate(refreshRotation) else Modifier)
-                        )
-                    }
+                            .background(
+                                if (isWatchConnected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outline
+                            )
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "ADB",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (isWatchConnected) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
+
+            IconButton(
+                onClick = onRefresh,
+                enabled = !isRefreshing,
+                modifier = Modifier.size(KiwiSize.iconButton),
+                colors = IconButtonDefaults.iconButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
+                if (isRefreshing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Làm mới kho ứng dụng"
+                    )
                 }
             }
         }

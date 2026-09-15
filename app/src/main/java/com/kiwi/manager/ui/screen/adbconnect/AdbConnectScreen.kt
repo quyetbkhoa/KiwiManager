@@ -9,6 +9,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -37,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -103,7 +105,7 @@ fun AdbConnectScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.08f))
                         .clickable { onNavigateBack() },
@@ -117,7 +119,7 @@ fun AdbConnectScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 Column {
                     Text(
@@ -158,7 +160,11 @@ fun AdbConnectScreen(
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(wifiBgColor)
-                        .clickable { viewModel.selectTab(AdbTabMode.WIFI) }
+                        .selectable(
+                            selected = isWifiSelected,
+                            role = Role.RadioButton,
+                            onClick = { viewModel.selectTab(AdbTabMode.WIFI) }
+                        )
                         .padding(vertical = 10.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
@@ -173,7 +179,7 @@ fun AdbConnectScreen(
                     Text(
                         text = "Wi-Fi (Mạng LAN)",
                         fontSize = 13.sp,
-                        fontWeight = if (isWifiSelected) FontWeight.Bold else FontWeight.Medium,
+                        fontWeight = FontWeight.Medium,
                         color = wifiTextColor
                     )
                 }
@@ -193,7 +199,10 @@ fun AdbConnectScreen(
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(btBgColor)
-                        .clickable {
+                        .selectable(
+                            selected = isBtSelected,
+                            role = Role.RadioButton
+                        ) {
                             // Check Bluetooth connect permission on Android 12+
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                 val hasPermission = ContextCompat.checkSelfPermission(
@@ -220,7 +229,7 @@ fun AdbConnectScreen(
                     Text(
                         text = "Bluetooth ⚡",
                         fontSize = 13.sp,
-                        fontWeight = if (isBtSelected) FontWeight.Bold else FontWeight.Medium,
+                        fontWeight = FontWeight.Medium,
                         color = btTextColor
                     )
                 }
@@ -542,7 +551,11 @@ fun AdbConnectScreen(
                                                     .clip(RoundedCornerShape(14.dp))
                                                     .background(itemBgColor)
                                                     .border(1.dp, itemBorderColor, RoundedCornerShape(14.dp))
-                                                    .clickable { viewModel.selectBluetoothDevice(device) }
+                                                    .selectable(
+                                                        selected = isSelected,
+                                                        role = Role.RadioButton,
+                                                        onClick = { viewModel.selectBluetoothDevice(device) }
+                                                    )
                                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -563,7 +576,7 @@ fun AdbConnectScreen(
                                                             Text(
                                                                 text = device.name,
                                                                 fontSize = 13.sp,
-                                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                                fontWeight = FontWeight.Medium,
                                                                 color = MaterialTheme.colorScheme.onSurface
                                                             )
                                                             if (device.isLikelyWatch) {

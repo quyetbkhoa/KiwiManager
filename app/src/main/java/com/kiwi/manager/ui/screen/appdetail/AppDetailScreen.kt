@@ -87,7 +87,7 @@ fun AppDetailScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.08f))
                         .clickable { onNavigateBack() },
@@ -101,7 +101,7 @@ fun AppDetailScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 Text(
                     text = uiState.app?.app?.name ?: "Chi tiết ứng dụng",

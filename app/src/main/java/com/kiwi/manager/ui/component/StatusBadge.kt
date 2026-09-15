@@ -5,11 +5,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,9 +19,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kiwi.manager.domain.model.InstallStatus
-import com.kiwi.manager.ui.theme.KiwiNeon
+import com.kiwi.manager.ui.theme.StatusNotInstalled
+import com.kiwi.manager.ui.theme.StatusSuccess
+import com.kiwi.manager.ui.theme.StatusUpdate
 
 @Composable
 fun StatusBadge(
@@ -28,59 +30,41 @@ fun StatusBadge(
     latestVersion: String = "",
     modifier: Modifier = Modifier
 ) {
-    val (dotColor, borderColor, bgColor, label) = when (status) {
-        InstallStatus.NOT_INSTALLED -> Quadruple(
-            Color(0xFF90A4AE),
-            Color(0x33B0BEC5),
-            Color(0x1590A4AE),
-            "Chưa cài"
+    val visual = when (status) {
+        InstallStatus.NOT_INSTALLED -> StatusVisual(StatusNotInstalled, "Chưa cài")
+        InstallStatus.UPDATE_AVAILABLE -> StatusVisual(
+            StatusUpdate,
+            if (latestVersion.isNotEmpty()) "Có bản $latestVersion" else "Có bản mới"
         )
-        InstallStatus.UPDATE_AVAILABLE -> Quadruple(
-            Color(0xFFFF9100),
-            Color(0x66FF9100),
-            Color(0x22FF9100),
-            if (latestVersion.isNotEmpty()) "Cập nhật v$latestVersion" else "Có bản mới"
-        )
-        InstallStatus.UP_TO_DATE -> Quadruple(
-            KiwiNeon,
-            Color(0x6676FF03),
-            Color(0x2076FF03),
-            "✓ Đã mới nhất"
-        )
-        InstallStatus.UNKNOWN -> Quadruple(
-            Color(0xFF78909C),
-            Color(0x3378909C),
-            Color(0x1078909C),
-            "—"
-        )
+        InstallStatus.UP_TO_DATE -> StatusVisual(StatusSuccess, "Đã cập nhật")
+        InstallStatus.UNKNOWN -> StatusVisual(MaterialTheme.colorScheme.outline, "Chưa xác định")
     }
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .defaultMinSize(minHeight = 28.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(visual.color.copy(alpha = 0.12f))
+            .border(1.dp, visual.color.copy(alpha = 0.42f), MaterialTheme.shapes.small)
             .padding(horizontal = 8.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.CenterStart
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(6.dp)
+                    .size(8.dp)
                     .clip(CircleShape)
-                    .background(dotColor)
+                    .background(visual.color)
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
-                text = label,
-                color = if (status == InstallStatus.UP_TO_DATE) KiwiNeon else Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                softWrap = false
+                text = visual.label,
+                color = visual.color,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
 }
 
-data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+private data class StatusVisual(val color: Color, val label: String)

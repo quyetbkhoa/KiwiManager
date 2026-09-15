@@ -2,12 +2,10 @@ package com.kiwi.manager.ui.screen.settings
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -24,10 +22,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -77,7 +74,7 @@ fun SettingsScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.08f))
                         .clickable { onNavigateBack() },
@@ -91,7 +88,7 @@ fun SettingsScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 Column {
                     Text(
@@ -224,27 +221,9 @@ fun ModernThemeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
-        animationSpec = spring(dampingRatio = 0.7f),
-        label = "theme_scale"
-    )
-
     Box(
         modifier = modifier
-            .scale(scale)
-            .height(116.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        tryAwaitRelease()
-                        isPressed = false
-                    },
-                    onTap = { onClick() }
-                )
-            }
+            .heightIn(min = 116.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(
                 if (isSelected) KiwiNeon.copy(alpha = 0.15f)
@@ -252,8 +231,13 @@ fun ModernThemeCard(
             )
             .border(
                 1.5.dp,
-                if (isSelected) KiwiNeon else Color.White.copy(alpha = 0.12f),
+                if (isSelected) KiwiNeon else MaterialTheme.colorScheme.outlineVariant,
                 RoundedCornerShape(20.dp)
+            )
+            .selectable(
+                selected = isSelected,
+                role = Role.RadioButton,
+                onClick = onClick
             )
             .padding(horizontal = 8.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
@@ -272,15 +256,27 @@ fun ModernThemeCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Box(
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isSelected) KiwiNeon
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    .border(
+                        1.5.dp,
+                        if (isSelected) KiwiNeon
+                        else MaterialTheme.colorScheme.outline,
+                        CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 if (isSelected) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
-                        tint = KiwiNeon,
-                        modifier = Modifier.size(14.dp)
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(12.dp)
                     )
                 }
             }
@@ -299,6 +295,7 @@ fun SettingItemRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (isClickable) Modifier.defaultMinSize(minHeight = 48.dp) else Modifier)
             .then(if (isClickable) Modifier.clickable { onClick() } else Modifier),
         verticalAlignment = Alignment.CenterVertically
     ) {
