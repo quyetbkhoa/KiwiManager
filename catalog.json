@@ -31,17 +31,17 @@
       "phone": {
         "packageName": "com.oppowatch.gemini",
         "assetPattern": "phone",
-        "versionName": "1.4.3",
-        "versionCode": 10403,
-        "downloadUrl": "https://github.com/quyetbkhoa/GeminiForWearOS2/releases/download/v1.4.3/Gemini_Phone_Companion.apk",
+        "versionName": "1.4.4",
+        "versionCode": 10404,
+        "downloadUrl": "https://github.com/quyetbkhoa/GeminiForWearOS2/releases/download/v1.4.4/Gemini_Phone_Companion.apk",
         "minSdk": 26
       },
       "watch": {
         "packageName": "com.oppowatch.gemini",
         "assetPattern": "watch",
-        "versionName": "1.4.3",
-        "versionCode": 10403,
-        "downloadUrl": "https://github.com/quyetbkhoa/GeminiForWearOS2/releases/download/v1.4.3/Gemini_Watch_App.apk",
+        "versionName": "1.4.4",
+        "versionCode": 10404,
+        "downloadUrl": "https://github.com/quyetbkhoa/GeminiForWearOS2/releases/download/v1.4.4/Gemini_Watch_App.apk",
         "minSdk": 28
       }
     },
